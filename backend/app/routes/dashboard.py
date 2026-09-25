@@ -1,0 +1,311 @@
+from fastapi import APIRouter, Depends, HTTPException
+from sqlalchemy.orm import Session
+from sqlalchemy import func, and_, desc
+from typing import Dict, Any
+
+from app.database.connection import get_db
+from app.models import User, Recommendation, Task, Room, Booking, ActivityLog, Department
+from app.utils.auth import get_current_user
+from datetime import datetime, timedelta
+
+router = APIRouter(prefix="/api/dashboard", tags=["Dashboards"])
+
+@router.get("/manager")
+def get_manager_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Manager dashboard with KPIs, pending recommendations, and system health.
+    """
+    resort_id = current_user.resort_id
+
+    # KPIs
+    total_rooms = db.query(func.count(Room.id)).filter(Room.resort_id == resort_id).scalar() or 100
+
+    # Today's occupancy
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+    today_occupied = db.query(func.count(Booking.id)).filter(
+        and_(
+            Booking.resort_id == resort_id,
+            Booking.check_in <= today,
+            Booking.check_out > today,
+            Booking.status.in_(["confirmed", "checked_in"])
+        )
+    ).scalar() or 0
+
+    occupancy_pct = (today_occupied / total_rooms * 100) if total_rooms > 0 else 0
+
+    # Tomorrow's check-ins
+    tomorrow = today + timedelta(days=1)
+    tomorrow_check_ins = db.query(func.count(Booking.id)).filter(
+        and_(
+            Booking.resort_id == resort_id,
+            func.date(Booking.check_in) == tomorrow.date(),
+            Booking.status.in_(["confirmed", "checked_in"])
+        )
+    ).scalar() or 0
+
+    # Pending recommendations
+    pending_recommendations = db.query(Recommendation).filter(
+        and_(
+            Recommendation.resort_id == resort_id,
+            Recommendation.status == "PENDING"
+        )
+    ).order_by(Recommendation.priority.desc(), Recommendation.created_at.desc()).all()
+
+    # Critical tasks
+    critical_tasks = db.query(Task).filter(
+        and_(
+            Task.resort_id == resort_id,
+            Task.priority.in_(["HIGH", "CRITICAL"]),
+            Task.status.in_(["PENDING", "IN_PROGRESS"])
+        )
+    ).count()
+
+    # Recent activity logs
+    recent_activity = db.query(ActivityLog).filter(
+        ActivityLog.resort_id == resort_id
+    ).order_by(desc(ActivityLog.created_at)).limit(10).all()
+
+    # Room status breakdown
+    room_status_breakdown = db.query(
+        Room.status, func.count(Room.id)
+    ).filter(Room.resort_id == resort_id).group_by(Room.status).all()
+
+    return {
+        "kpis": {
+            "current_occupancy_pct": round(occupancy_pct, 1),
+            "occupied_rooms": today_occupied,
+            "total_rooms": total_rooms,
+            "tomorrow_check_ins": tomorrow_check_ins,
+            "pending_recommendations": len(pending_recommendations),
+            "critical_tasks": critical_tasks
+        },
+        "pending_recommendations": [
+            {
+                "id": rec.id,
+                "type": rec.type,
+                "priority": rec.priority,
+                "title": rec.title,
+                "recommended_action": rec.recommended_action,
+                "explanation": rec.explanation,
+                "expected_impact": rec.expected_impact,
+                "metrics_data": rec.metrics_data,
+                "target_date": rec.target_date,
+                "created_at": rec.created_at.isoformat()
+            }
+            for rec in pending_recommendations
+        ],
+        "room_status_breakdown": {status: count for status, count in room_status_breakdown},
+        "recent_activity": [
+            {
+                "id": log.id,
+                "user_name": log.user_name,
+                "user_role": log.user_role,
+                "action_type": log.action_type,
+                "description": log.description,
+                "created_at": log.created_at.isoformat()
+            }
+            for log in recent_activity
+        ]
+    }
+
+
+@router.get("/front-desk")
+def get_front_desk_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Front Desk dashboard with check-ins, check-outs, room readiness.
+    """
+    resort_id = current_user.resort_id
+    today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
+
+    # Today's check-ins
+    todays_check_ins = db.query(Booking).filter(
+        and_(
+            Booking.resort_id == resort_id,
+            func.date(Booking.check_in) == today.date(),
+            Booking.status.in_(["confirmed", "checked_in"])
+        )
+    ).all()
+
+    # Today's check-outs
+    todays_check_outs = db.query(Booking).filter(
+        and_(
+            Booking.resort_id == resort_id,
+            func.date(Booking.check_out) == today.date(),
+            Booking.status.in_(["confirmed", "checked_in"])
+        )
+    ).all()
+
+    # Room readiness
+    clean_rooms = db.query(func.count(Room.id)).filter(
+        and_(Room.resort_id == resort_id, Room.status == "clean")
+    ).scalar() or 0
+
+    dirty_rooms = db.query(func.count(Room.id)).filter(
+        and_(Room.resort_id == resort_id, Room.status == "dirty")
+    ).scalar() or 0
+
+    inspecting_rooms = db.query(func.count(Room.id)).filter(
+        and_(Room.resort_id == resort_id, Room.status == "inspecting")
+    ).scalar() or 0
+
+    maintenance_rooms = db.query(func.count(Room.id)).filter(
+        and_(Room.resort_id == resort_id, Room.status == "maintenance")
+    ).scalar() or 0
+
+    return {
+        "todays_check_ins": [
+            {
+                "id": b.id,
+                "room_number": b.room.room_number if b.room else "TBA",
+                "guest_name": b.guest_name,
+                "guests_count": b.guests_count,
+                "early_arrival": b.early_arrival,
+                "expected_arrival_time": b.expected_arrival_time,
+                "status": b.status
+            }
+            for b in todays_check_ins
+        ],
+        "todays_check_outs": [
+            {
+                "id": b.id,
+                "room_number": b.room.room_number if b.room else "TBA",
+                "guest_name": b.guest_name,
+                "status": b.status
+            }
+            for b in todays_check_outs
+        ],
+        "room_readiness": {
+            "clean": clean_rooms,
+            "dirty": dirty_rooms,
+            "inspecting": inspecting_rooms,
+            "maintenance": maintenance_rooms
+        }
+    }
+
+
+@router.get("/department")
+def get_department_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Department Head dashboard with assigned tasks and team workload.
+    """
+    resort_id = current_user.resort_id
+    department_id = current_user.department_id
+
+    if not department_id:
+        raise HTTPException(status_code=400, detail="User is not assigned to a department")
+
+    # Get department info
+    department = db.query(Department).filter(Department.id == department_id).first()
+
+    # Department tasks
+    tasks = db.query(Task).filter(
+        and_(
+            Task.resort_id == resort_id,
+            Task.department_id == department_id
+        )
+    ).order_by(Task.priority.desc(), Task.created_at.desc()).all()
+
+    # Team members
+    team_members = db.query(User).filter(
+        and_(
+            User.resort_id == resort_id,
+            User.department_id == department_id,
+            User.role == "STAFF"
+        )
+    ).all()
+
+    # Task status breakdown
+    pending_tasks = sum(1 for t in tasks if t.status == "PENDING")
+    in_progress_tasks = sum(1 for t in tasks if t.status == "IN_PROGRESS")
+    completed_tasks = sum(1 for t in tasks if t.status == "COMPLETED")
+
+    return {
+        "department": {
+            "id": department.id,
+            "name": department.name
+        } if department else None,
+        "task_summary": {
+            "pending": pending_tasks,
+            "in_progress": in_progress_tasks,
+            "completed": completed_tasks,
+            "total": len(tasks)
+        },
+        "tasks": [
+            {
+                "id": t.id,
+                "title": t.title,
+                "description": t.description,
+                "priority": t.priority,
+                "status": t.status,
+                "assigned_to": t.assignee.name if t.assignee else "Unassigned",
+                "assignee_id": t.assigned_to,
+                "room_number": t.room_number,
+                "due_date": t.due_date.isoformat() if t.due_date else None,
+                "created_at": t.created_at.isoformat()
+            }
+            for t in tasks
+        ],
+        "team_members": [
+            {
+                "id": u.id,
+                "name": u.name,
+                "email": u.email,
+                "phone": u.phone,
+                "avatar_url": u.avatar_url
+            }
+            for u in team_members
+        ]
+    }
+
+
+@router.get("/staff")
+def get_staff_dashboard(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+) -> Dict[str, Any]:
+    """
+    Staff dashboard with assigned tasks only.
+    """
+    resort_id = current_user.resort_id
+    user_id = current_user.id
+
+    # My assigned tasks
+    my_tasks = db.query(Task).filter(
+        and_(
+            Task.resort_id == resort_id,
+            Task.assigned_to == user_id
+        )
+    ).order_by(Task.priority.desc(), Task.due_date.asc()).all()
+
+    return {
+        "my_tasks": [
+            {
+                "id": t.id,
+                "title": t.title,
+                "description": t.description,
+                "priority": t.priority,
+                "status": t.status,
+                "room_number": t.room_number,
+                "due_date": t.due_date.isoformat() if t.due_date else None,
+                "created_at": t.created_at.isoformat()
+            }
+            for t in my_tasks
+        ],
+        "summary": {
+            "pending": sum(1 for t in my_tasks if t.status == "PENDING"),
+            "in_progress": sum(1 for t in my_tasks if t.status == "IN_PROGRESS"),
+            "completed_today": sum(
+                1 for t in my_tasks
+                if t.status == "COMPLETED" and t.completed_at and t.completed_at.date() == datetime.utcnow().date()
+            )
+        }
+    }
