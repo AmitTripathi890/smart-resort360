@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
 import { dashboardAPI, tasksAPI } from '../services/api';
+import { Toast } from '../components/Toast';
 import { Users, CheckSquare, User, RefreshCw } from 'lucide-react';
 import { getPriorityColor, getStatusColor } from '../utils/helpers';
 
 export const DepartmentDashboard = () => {
   const [data, setData] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [notification, setNotification] = useState(null);
 
   useEffect(() => {
     fetchData();
@@ -26,9 +28,12 @@ export const DepartmentDashboard = () => {
     try {
       await tasksAPI.assign(taskId, staffId);
       await fetchData();
-      alert('Task assigned successfully!');
+      setNotification({ type: 'success', message: 'Task assigned successfully.' });
     } catch (err) {
-      alert('Failed to assign: ' + (err.response?.data?.detail || err.message));
+      setNotification({
+        type: 'error',
+        message: 'Failed to assign: ' + (err.response?.data?.detail || err.message)
+      });
     }
   };
 
@@ -39,7 +44,10 @@ export const DepartmentDashboard = () => {
       await tasksAPI.escalate(taskId, blockerReason);
       await fetchData();
     } catch (err) {
-      alert('Failed to escalate: ' + (err.response?.data?.detail || err.message));
+      setNotification({
+        type: 'error',
+        message: 'Failed to escalate: ' + (err.response?.data?.detail || err.message)
+      });
     }
   };
 
@@ -53,6 +61,11 @@ export const DepartmentDashboard = () => {
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
+      <Toast
+        message={notification?.message}
+        type={notification?.type}
+        onDismiss={() => setNotification(null)}
+      />
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
           <Users className="w-8 h-8 text-indigo-400" />
@@ -122,8 +135,8 @@ export const DepartmentDashboard = () => {
 
               <div className="flex items-center gap-3 mt-3 pt-3 border-t border-slate-800">
                 <span className="text-xs text-slate-400">Assigned to:</span>
-                {task.assignee_id ? (
-                  <span className="text-xs font-medium text-white">{task.assigned_to}</span>
+                {task.assigned_to ? (
+                  <span className="text-xs font-medium text-white">{task.assignee_name}</span>
                 ) : (
                   <select
                     onChange={(e) => handleAssign(task.id, Number(e.target.value))}

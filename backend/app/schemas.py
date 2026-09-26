@@ -138,6 +138,7 @@ class PurchaseOrderResponse(BaseModel):
     approved_by: Optional[str]
     created_at: datetime
     fulfilled_at: Optional[datetime]
+    category: Optional[str] = None
 
     class Config:
         from_attributes = True

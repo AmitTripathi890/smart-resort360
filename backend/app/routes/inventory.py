@@ -92,7 +92,25 @@ def get_purchase_orders(
         PurchaseOrder.resort_id == resort_id
     ).order_by(PurchaseOrder.created_at.desc()).all()
 
-    return pos
+    return [
+        {
+            "id": po.id,
+            "resort_id": po.resort_id,
+            "recommendation_id": po.recommendation_id,
+            "inventory_item_id": po.inventory_item_id,
+            "item_name": po.item_name,
+            "quantity": po.quantity,
+            "unit": po.unit,
+            "estimated_cost": po.estimated_cost,
+            "supplier": po.supplier,
+            "status": po.status,
+            "approved_by": po.approved_by,
+            "created_at": po.created_at,
+            "fulfilled_at": po.fulfilled_at,
+            "category": po.inventory_item.category if po.inventory_item else None,
+        }
+        for po in pos
+    ]
 
 
 @router.post("/purchase-orders", response_model=PurchaseOrderResponse)

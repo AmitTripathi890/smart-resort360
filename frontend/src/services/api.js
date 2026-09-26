@@ -31,6 +31,11 @@ export const dashboardAPI = {
   getStaff: () => api.get('/api/dashboard/staff'),
 };
 
+// Department catalog
+export const departmentsAPI = {
+  getAll: () => api.get('/api/departments'),
+};
+
 // Room and front-desk actions
 export const frontDeskAPI = {
   getRooms: () => api.get('/api/rooms'),

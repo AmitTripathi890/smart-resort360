@@ -72,7 +72,7 @@ def approve_recommendation(
 
     Closed-loop execution:
     - Staffing recommendations → Create department tasks
-    - Inventory recommendations → Create purchase orders
+    - Inventory recommendations → Create department tasks
     - Log the approval in activity log
     """
     resort_id = current_user.resort_id

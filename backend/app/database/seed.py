@@ -490,6 +490,17 @@ def seed_database():
                 room_number="401",
                 due_date=datetime.utcnow() + timedelta(hours=6)
             ),
+            Task(
+                resort_id=resort.id,
+                department_id=hk_dept.id,
+                title="Refresh High-Turnover Room 215",
+                description="Prepare room 215 for the next arrival. The housekeeping SLA has already been missed and requires department-head assignment.",
+                priority="HIGH",
+                status="PENDING",
+                room_number="215",
+                due_date=datetime.utcnow() - timedelta(minutes=45),
+                sla_minutes=120
+            ),
         ]
         db.add_all(tasks)
         db.flush()

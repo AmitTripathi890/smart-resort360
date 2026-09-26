@@ -1,13 +1,16 @@
 import React, { useState, useEffect } from 'react';
-import { inventoryAPI } from '../services/api';
+import { departmentsAPI, inventoryAPI } from '../services/api';
 import { Package, AlertTriangle, CheckCircle2, ShoppingCart, RefreshCw, ArrowUpRight } from 'lucide-react';
 import { getStatusColor, formatDateTime } from '../utils/helpers';
+import { getDepartmentNameForCategory, matchesDepartment } from '../utils/departments';
 
 export const Inventory = () => {
   const [items, setItems] = useState([]);
   const [pos, setPos] = useState([]);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState('inventory');
+  const [departments, setDepartments] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
 
   useEffect(() => {
     fetchData();
@@ -15,12 +18,14 @@ export const Inventory = () => {
 
   const fetchData = async () => {
     try {
-      const [itemsRes, posRes] = await Promise.all([
+      const [itemsRes, posRes, departmentsRes] = await Promise.all([
         inventoryAPI.getItems(),
-        inventoryAPI.getPurchaseOrders()
+        inventoryAPI.getPurchaseOrders(),
+        departmentsAPI.getAll()
       ]);
       setItems(itemsRes.data);
       setPos(posRes.data);
+      setDepartments(departmentsRes.data);
     } catch (err) {
       console.error('Failed to fetch inventory data:', err);
     } finally {
@@ -46,7 +51,15 @@ export const Inventory = () => {
     );
   }
 
-  const criticalItems = items.filter(i => i.stockout_risk === 'CRITICAL' || i.stockout_risk === 'HIGH');
+  const filteredItems = items.filter((item) => matchesDepartment(
+    getDepartmentNameForCategory(item.category),
+    selectedDepartment
+  ));
+  const filteredPos = pos.filter((po) => matchesDepartment(
+    getDepartmentNameForCategory(po.category),
+    selectedDepartment
+  ));
+  const criticalItems = filteredItems.filter(i => i.stockout_risk === 'CRITICAL' || i.stockout_risk === 'HIGH');
 
   return (
     <div className="max-w-7xl mx-auto px-4 py-8">
@@ -84,6 +97,21 @@ export const Inventory = () => {
         </button>
       </div>
 
+      <div className="flex items-center gap-2 mb-6">
+        <label htmlFor="inventory-department" className="text-xs font-semibold text-slate-400">Department</label>
+        <select
+          id="inventory-department"
+          value={selectedDepartment}
+          onChange={(e) => setSelectedDepartment(e.target.value)}
+          className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-ivory-300 text-charcoal-700"
+        >
+          <option value="all">All Departments</option>
+          {departments.map((department) => (
+            <option key={department.id} value={department.name}>{department.name}</option>
+          ))}
+        </select>
+      </div>
+
       {activeTab === 'inventory' && (
         <div className="space-y-6">
           {/* Critical Risk Banner */}
@@ -105,7 +133,7 @@ export const Inventory = () => {
 
           {/* Inventory Grid */}
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {items.map((item) => (
+            {filteredItems.map((item) => (
               <div
                 key={item.id}
                 className="bg-slate-800/80 border border-slate-700 rounded-xl p-5 shadow-lg relative overflow-hidden"
@@ -163,7 +191,7 @@ export const Inventory = () => {
             Purchase Order Execution Trail
           </h2>
 
-          {pos.length === 0 ? (
+          {filteredPos.length === 0 ? (
             <p className="text-sm text-slate-400 text-center py-8">No purchase orders created yet.</p>
           ) : (
             <table className="w-full text-left text-xs text-slate-300">
@@ -180,7 +208,7 @@ export const Inventory = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-700/50">
-                {pos.map((po) => (
+                {filteredPos.map((po) => (
                   <tr key={po.id} className="hover:bg-slate-750">
                     <td className="p-3 font-mono text-sky-400 font-bold">PO-{po.id}</td>
                     <td className="p-3 font-semibold text-white">{po.item_name}</td>

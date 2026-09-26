@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import { dashboardAPI, recommendationsAPI } from '../services/api';
+import { dashboardAPI, recommendationsAPI, departmentsAPI } from '../services/api';
 import { RecommendationCard } from '../components/RecommendationCard';
+import { Toast } from '../components/Toast';
 import {
   Activity,
   AlertTriangle,
@@ -14,6 +15,7 @@ import {
   RefreshCw
 } from 'lucide-react';
 import { formatDateTime } from '../utils/helpers';
+import { getDepartmentNameForCategory, getDepartmentNameForRecommendation, matchesDepartment } from '../utils/departments';
 
 export const ManagerDashboard = () => {
   const [data, setData] = useState(null);
@@ -22,6 +24,9 @@ export const ManagerDashboard = () => {
   const [processing, setProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('pending'); // pending | all
   const [activeQueue, setActiveQueue] = useState('overdue_tasks');
+  const [notification, setNotification] = useState(null);
+  const [departments, setDepartments] = useState([]);
+  const [selectedDepartment, setSelectedDepartment] = useState('all');
 
   useEffect(() => {
     fetchData();
@@ -30,12 +35,14 @@ export const ManagerDashboard = () => {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const [dashRes, recRes] = await Promise.all([
+      const [dashRes, recRes, departmentsRes] = await Promise.all([
         dashboardAPI.getManager(),
-        recommendationsAPI.getAll()
+        recommendationsAPI.getAll(),
+        departmentsAPI.getAll()
       ]);
       setData(dashRes.data);
       setRecommendations(recRes.data);
+      setDepartments(departmentsRes.data);
     } catch (err) {
       console.error('Failed to fetch dashboard:', err);
     } finally {
@@ -48,9 +55,15 @@ export const ManagerDashboard = () => {
     try {
       await recommendationsAPI.approve(id);
       await fetchData();
-      alert('Recommendation approved! Tasks/POs have been created in the closed-loop workflow.');
+      setNotification({
+        type: 'success',
+        message: 'Recommendation approved. A department action is ready for assignment.'
+      });
     } catch (err) {
-      alert('Failed to approve: ' + (err.response?.data?.detail || err.message));
+      setNotification({
+        type: 'error',
+        message: 'Failed to approve: ' + (err.response?.data?.detail || err.message)
+      });
     } finally {
       setProcessing(false);
     }
@@ -61,8 +74,12 @@ export const ManagerDashboard = () => {
     try {
       await recommendationsAPI.reject(id, { action: 'REJECT', modified_notes: 'Manager declined recommendation' });
       await fetchData();
+      setNotification({ type: 'success', message: 'Recommendation rejected.' });
     } catch (err) {
-      alert('Failed to reject: ' + (err.response?.data?.detail || err.message));
+      setNotification({
+        type: 'error',
+        message: 'Failed to reject: ' + (err.response?.data?.detail || err.message)
+      });
     } finally {
       setProcessing(false);
     }
@@ -73,9 +90,12 @@ export const ManagerDashboard = () => {
     try {
       await recommendationsAPI.modify(id, modifyData);
       await fetchData();
-      alert('Modified recommendation approved and executed!');
+      setNotification({ type: 'success', message: 'Modified recommendation approved and executed.' });
     } catch (err) {
-      alert('Failed to modify: ' + (err.response?.data?.detail || err.message));
+      setNotification({
+        type: 'error',
+        message: 'Failed to modify: ' + (err.response?.data?.detail || err.message)
+      });
     } finally {
       setProcessing(false);
     }
@@ -100,11 +120,25 @@ export const ManagerDashboard = () => {
     inventory_risks: 'Inventory Risks',
   };
   const activeQueueItems = queues[activeQueue] || [];
-  const pending = recommendations.filter(r => r.status === 'PENDING');
-  const displayRecs = activeTab === 'pending' ? pending : recommendations;
+  const departmentMatchesItem = (item) => matchesDepartment(
+    item.department || getDepartmentNameForCategory(item.category || item.request_type),
+    selectedDepartment
+  );
+  const filteredQueueItems = activeQueueItems.filter(departmentMatchesItem);
+  const filteredRecommendations = recommendations.filter((recommendation) => matchesDepartment(
+    getDepartmentNameForRecommendation(recommendation),
+    selectedDepartment
+  ));
+  const pending = filteredRecommendations.filter(r => r.status === 'PENDING');
+  const displayRecs = activeTab === 'pending' ? pending : filteredRecommendations;
 
   return (
     <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <Toast
+        message={notification?.message}
+        type={notification?.type}
+        onDismiss={() => setNotification(null)}
+      />
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
@@ -196,13 +230,13 @@ export const ManagerDashboard = () => {
             <h2 className="text-lg font-bold text-charcoal-900">{queueLabels[activeQueue]}</h2>
             <p className="text-xs text-charcoal-500 mt-1">The records behind the selected attention count.</p>
           </div>
-          <span className="text-sm font-semibold text-forest-700">{activeQueueItems.length} shown</span>
+          <span className="text-sm font-semibold text-forest-700">{filteredQueueItems.length} shown</span>
         </div>
-        {activeQueueItems.length === 0 ? (
+        {filteredQueueItems.length === 0 ? (
           <p className="text-sm text-charcoal-500 py-4">Nothing requires attention in this queue.</p>
         ) : (
           <div className="space-y-2">
-            {activeQueueItems.map((item) => (
+            {filteredQueueItems.map((item) => (
               <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 border border-ivory-300 rounded-lg px-4 py-3 bg-ivory-50">
                 <div>
                   <p className="text-sm font-semibold text-charcoal-900">
@@ -230,6 +264,17 @@ export const ManagerDashboard = () => {
             Explainable AI Recommendations
           </h2>
           <div className="flex items-center gap-2">
+            <select
+              value={selectedDepartment}
+              onChange={(e) => setSelectedDepartment(e.target.value)}
+              className="px-3 py-1.5 text-xs font-medium rounded-lg bg-white border border-ivory-300 text-charcoal-700"
+              aria-label="Filter by department"
+            >
+              <option value="all">All Departments</option>
+              {departments.map((department) => (
+                <option key={department.id} value={department.name}>{department.name}</option>
+              ))}
+            </select>
             <button
               onClick={() => setActiveTab('pending')}
               className={`px-3 py-1.5 text-xs font-medium rounded-lg transition ${

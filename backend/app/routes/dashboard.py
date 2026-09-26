@@ -124,6 +124,13 @@ def get_manager_dashboard(
                 "current_stock": item.current_stock,
                 "reorder_threshold": item.reorder_threshold,
                 "unit": item.unit,
+                "category": item.category,
+                "department": (
+                    "Food & Beverage" if item.category == "F&B"
+                    else "Housekeeping" if item.category in {"Housekeeping", "Guest Amenities"}
+                    else "Maintenance" if item.category == "Maintenance"
+                    else item.category
+                ),
             }
             for item in db.query(InventoryItem).filter(
                 InventoryItem.resort_id == resort_id,

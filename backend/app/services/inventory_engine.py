@@ -184,8 +184,10 @@ class InventoryEngine:
             "metrics_data": {
                 "item_id": item_analysis['item_id'],
                 "item_name": item_analysis['item_name'],
+                "category": item_analysis['category'],
                 "reorder_quantity": item_analysis['reorder_quantity'],
                 "unit": item_analysis['unit'],
+                "unit_cost": item_analysis['unit_cost'],
                 "estimated_cost": item_analysis['estimated_cost'],
                 "current_stock": item_analysis['current_stock'],
                 "risk_level": item_analysis['risk_level'],

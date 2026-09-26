@@ -99,7 +99,7 @@ export const RecommendationCard = ({
         </div>
       </div>
 
-      {/* Action Buttons (Approve / Modify / Reject) */}
+      {/* All recommendations support the complete manager review flow. */}
       {isPending ? (
         <div className="flex items-center gap-2 pt-3 border-t border-ivory-300">
           <button
@@ -108,7 +108,7 @@ export const RecommendationCard = ({
             className="btn-primary flex-1 text-xs disabled:opacity-50"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
-            <span>Approve & Execute</span>
+            <span>{recommendation.type === 'inventory' ? 'Approve & Create Action' : 'Approve & Execute'}</span>
           </button>
 
           <button
@@ -125,9 +125,10 @@ export const RecommendationCard = ({
             onClick={() => onReject(recommendation.id)}
             disabled={isProcessing}
             className="btn-danger btn-sm"
-            title="Reject recommendation"
+            title="Decline recommendation"
           >
             <XCircle className="w-3.5 h-3.5" />
+            <span>Decline</span>
           </button>
         </div>
       ) : (
@@ -146,7 +147,7 @@ export const RecommendationCard = ({
               Modify Recommendation Parameters
             </h3>
             <p className="text-xs text-slate-400 mb-4">
-              Adjust recommended values before approving. The closed-loop engine will generate tasks/POs with your modified targets.
+              Adjust recommended values before approving. The closed-loop engine will create the department action with your modified target.
             </p>
 
             <form onSubmit={handleModifySubmit} className="space-y-4">
