@@ -1,33 +1,227 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Source+Serif+4:wght@500;600&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* =========================================================
+   DESIGN SYSTEM — Smart Resort 360
+   Warm Ivory / Forest Green / Luxury Hospitality
+   ========================================================= */
+
 :root {
-  font-family: Inter, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, 'Open Sans', 'Helvetica Neue', sans-serif;
+  font-family: 'DM Sans', system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  font-feature-settings: 'cv11', 'ss01';
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+
+  --color-bg:            #F7F5EF;
+  --color-surface:       #FFFFFF;
+  --color-surface-2:     #EEF3EF;
+  --color-border:        #E3E4DF;
+  --color-text-primary:  #202624;
+  --color-text-secondary:#69716D;
+  --color-forest:        #173F35;
+  --color-sage:          #7A9488;
+  --color-brass:         #B08D57;
 }
 
 body {
   margin: 0;
   min-height: 100vh;
-  background-color: #020617;
-  color: #f8fafc;
+  background-color: var(--color-bg);
+  color: var(--color-text-primary);
 }
 
-/* Custom scrollbars */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
+h1, h2, h3 {
+  font-family: 'Source Serif 4', Georgia, serif;
+  font-weight: 600;
+  letter-spacing: 0;
 }
 
-::-webkit-scrollbar-track {
-  background: #0f172a;
+button, input, textarea, select { font: inherit; }
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar       { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #EEF3EF; }
+::-webkit-scrollbar-thumb { background: #CBD5CF; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #7A9488; }
+
+/* ── Utility Layer ── */
+@layer components {
+
+  /* --- Layout Shell --- */
+  .app-shell {
+    @apply flex min-h-screen bg-ivory-100;
+  }
+  .app-sidebar {
+    @apply fixed top-0 left-0 h-full w-56 bg-forest-900 flex flex-col z-40 border-r border-forest-800;
+  }
+  .app-main {
+    @apply ml-56 flex-1 min-h-screen flex flex-col;
+  }
+  .app-topbar {
+    @apply sticky top-0 z-30 bg-white border-b border-ivory-300 px-6 py-3 flex items-center justify-between;
+  }
+  .app-content {
+    @apply flex-1 px-6 py-6 max-w-7xl mx-auto w-full;
+  }
+
+  /* --- Page Header --- */
+  .page-header {
+    @apply mb-7;
+  }
+  .page-title {
+    @apply text-2xl font-bold text-charcoal-900 tracking-tight;
+  }
+  .page-subtitle {
+    @apply text-sm text-charcoal-500 mt-0.5;
+  }
+
+  /* --- Surface / Card --- */
+  .surface {
+    @apply bg-white border border-ivory-300 rounded-lg shadow-card;
+  }
+  .surface-2 {
+    @apply bg-ivory-100 border border-ivory-300 rounded-xl;
+  }
+  .panel {
+    @apply bg-white border border-ivory-300 rounded-lg shadow-panel;
+  }
+
+  /* --- Sidebar Nav Items --- */
+  .nav-item {
+    @apply flex items-center gap-2.5 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 text-forest-200 hover:bg-forest-800 hover:text-white;
+  }
+  .nav-item-active {
+    @apply bg-forest-800 text-white;
+  }
+  .nav-item-active-bar {
+    @apply absolute left-0 top-1 bottom-1 w-0.5 bg-brass-500 rounded-r;
+  }
+
+  /* --- Buttons --- */
+  .btn {
+    @apply inline-flex items-center justify-center gap-1.5 font-medium rounded-lg transition-all duration-150 focus:outline-none focus:ring-2 focus:ring-offset-1 disabled:opacity-50 disabled:cursor-not-allowed;
+  }
+  .btn-primary {
+    @apply btn bg-forest-900 text-white hover:bg-forest-800 focus:ring-forest-700 shadow-btn px-4 py-2 text-sm;
+  }
+  .btn-secondary {
+    @apply btn bg-white text-charcoal-900 border border-ivory-300 hover:bg-ivory-100 focus:ring-sage-400 px-4 py-2 text-sm;
+  }
+  .btn-ghost {
+    @apply btn text-charcoal-600 hover:bg-ivory-200 hover:text-charcoal-900 px-3 py-2 text-sm;
+  }
+  .btn-danger {
+    @apply btn bg-status-criticalBg text-status-criticalText border border-red-200 hover:bg-red-100 px-3 py-2 text-sm;
+  }
+  .btn-sm {
+    @apply px-3 py-1.5 text-xs;
+  }
+  .btn-xs {
+    @apply px-2 py-1 text-xs;
+  }
+
+  /* --- Form Inputs --- */
+  .input {
+    @apply w-full bg-white border border-ivory-300 rounded-lg px-3 py-2 text-sm text-charcoal-900 placeholder-charcoal-400
+           focus:outline-none focus:ring-2 focus:ring-forest-900/20 focus:border-forest-700 transition-all duration-150;
+  }
+  .label {
+    @apply block text-xs font-semibold text-charcoal-700 mb-1.5;
+  }
+
+  /* --- KPI / Stat Card --- */
+  .stat-card {
+    @apply surface p-5;
+  }
+  .stat-label {
+    @apply text-xs font-medium text-charcoal-500 uppercase tracking-wider;
+  }
+  .stat-value {
+    @apply text-2xl font-bold text-charcoal-900 mt-1.5 leading-none;
+  }
+  .stat-sub {
+    @apply text-xs text-charcoal-400 mt-1;
+  }
+
+  /* --- Status Badges (muted, semantic) --- */
+  .badge {
+    @apply inline-flex items-center px-2 py-0.5 rounded text-xs font-medium border;
+  }
+  .badge-success {
+    @apply badge bg-status-successBg text-status-successText border-green-200;
+  }
+  .badge-warning {
+    @apply badge bg-status-warningBg text-status-warningText border-amber-200;
+  }
+  .badge-critical {
+    @apply badge bg-status-criticalBg text-status-criticalText border-red-200;
+  }
+  .badge-info {
+    @apply badge bg-status-infoBg text-status-infoText border-blue-200;
+  }
+  .badge-neutral {
+    @apply badge bg-ivory-200 text-charcoal-600 border-ivory-300;
+  }
+  .badge-forest {
+    @apply badge bg-forest-50 text-forest-900 border-forest-200;
+  }
+
+  /* --- Table --- */
+  .data-table {
+    @apply w-full text-left text-sm text-charcoal-700;
+  }
+  .data-table thead {
+    @apply bg-ivory-100 border-b border-ivory-300;
+  }
+  .data-table thead th {
+    @apply px-4 py-2.5 text-xs font-semibold text-charcoal-500 uppercase tracking-wider whitespace-nowrap;
+  }
+  .data-table tbody tr {
+    @apply border-b border-ivory-200 hover:bg-ivory-50 transition-colors duration-100;
+  }
+  .data-table tbody td {
+    @apply px-4 py-3;
+  }
+
+  /* --- Section Header inside a page --- */
+  .section-title {
+    @apply text-base font-semibold text-charcoal-900 flex items-center gap-2;
+  }
+  .section-icon {
+    @apply text-sage-400;
+  }
+
+  /* --- Tabs --- */
+  .tab-bar {
+    @apply flex gap-1 border-b border-ivory-300 mb-5;
+  }
+  .tab {
+    @apply px-4 py-2 text-sm font-medium text-charcoal-500 border-b-2 border-transparent -mb-px transition-all duration-150 hover:text-charcoal-900;
+  }
+  .tab-active {
+    @apply text-forest-900 border-forest-900;
+  }
+
+  /* --- AI Indicator --- */
+  .ai-label {
+    @apply inline-flex items-center gap-1 text-xs font-medium text-forest-700 bg-sage-50 border border-sage-200 rounded px-2 py-0.5;
+  }
 }
 
-::-webkit-scrollbar-thumb {
-  background: #334155;
-  border-radius: 4px;
+/* Keep legacy page utilities aligned with the centralized palette. */
+.bg-slate-800\/80, .bg-slate-800\/90, .bg-slate-800\/50, .bg-slate-900\/60,
+.bg-slate-900\/50, .bg-slate-900\/30, .bg-slate-900 {
+  background-color: var(--color-surface) !important;
 }
-
-::-webkit-scrollbar-thumb:hover {
-  background: #475569;
-}
+.bg-slate-950 { background-color: var(--color-bg) !important; }
+.border-slate-800, .border-slate-700, .border-slate-700\/80, .border-slate-700\/60,
+.border-slate-800\/60 { border-color: var(--color-border) !important; }
+.text-white { color: var(--color-text-primary) !important; }
+.text-slate-300, .text-slate-400, .text-slate-500 { color: var(--color-text-secondary) !important; }
+.btn-primary { color: #FFFFFF !important; }
+.btn-primary svg { color: #FFFFFF !important; }
+.hover\:bg-slate-800:hover, .hover\:bg-slate-700:hover { background-color: var(--color-surface-2) !important; }
+.backdrop-blur, .backdrop-blur-sm { backdrop-filter: none; }

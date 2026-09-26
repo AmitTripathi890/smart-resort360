@@ -1,1 +1,57 @@
+# =========================
+# Environment variables
+# =========================
 .env
+.env.*
+!.env.example
+
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environments
+venv/
+.venv/
+backend/venv/
+
+# Python tooling
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+
+# =========================
+# Databases
+# =========================
+*.db
+*.sqlite
+*.sqlite3
+
+
+# =========================
+# Node / Frontend
+# =========================
+node_modules/
+frontend/node_modules/
+
+# Build output
+dist/
+frontend/dist/
+
+# Vite
+.vite/
+
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+
+# OS files
+.DS_Store
+Thumbs.db

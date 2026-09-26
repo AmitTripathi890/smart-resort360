@@ -87,8 +87,8 @@ export const Login = () => {
               <Sparkles className="w-3.5 h-3.5" />
               <span>AI Operations Co-Pilot</span>
             </div>
-            <h1 className="text-3xl font-extrabold text-white tracking-tight">
-              Smart Resort <span className="bg-gradient-to-r from-sky-400 to-indigo-400 bg-clip-text text-transparent">360</span>
+            <h1 className="text-3xl font-extrabold text-charcoal-900 tracking-tight">
+              Smart Resort <span className="text-forest-900">360</span>
             </h1>
             <p className="mt-2 text-sm text-slate-400 leading-relaxed">
               Predictive operations management and closed-loop decision orchestration for luxury resorts.
@@ -179,7 +179,7 @@ export const Login = () => {
             <button
               type="submit"
               disabled={isLoading}
-              className="w-full py-2.5 px-4 bg-sky-600 hover:bg-sky-500 text-white font-semibold text-sm rounded-lg shadow-lg shadow-sky-600/30 transition disabled:opacity-50 flex items-center justify-center space-x-2 mt-2"
+              className="btn-primary w-full mt-2"
             >
               <Shield className="w-4 h-4" />
               <span>{isLoading ? 'Authenticating...' : 'Sign In'}</span>

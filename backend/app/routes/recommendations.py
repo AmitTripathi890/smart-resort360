@@ -4,7 +4,7 @@ from typing import List
 
 from app.database.connection import get_db
 from app.models import User, Recommendation, ActivityLog
-from app.schemas import RecommendationResponse, RecommendationActionRequest
+from app.schemas import RecommendationResponse, RecommendationActionRequest, RecommendationOutcomeCreate
 from app.utils.auth import get_current_user, require_role
 from app.services.recommendation_engine import RecommendationEngine
 
@@ -143,3 +143,57 @@ def modify_and_approve_recommendation(
     )
 
     return result
+
+
+@router.post("/{recommendation_id}/outcome")
+def record_recommendation_outcome(
+    recommendation_id: int,
+    outcome: RecommendationOutcomeCreate,
+    current_user: User = Depends(require_role(["MANAGER", "DEPARTMENT_HEAD"])),
+    db: Session = Depends(get_db)
+):
+    """Record measured results after an approved recommendation is executed."""
+    recommendation = db.query(Recommendation).filter(
+        Recommendation.id == recommendation_id,
+        Recommendation.resort_id == current_user.resort_id,
+    ).first()
+    if not recommendation:
+        raise HTTPException(status_code=404, detail="Recommendation not found")
+    if recommendation.status not in {"APPROVED", "MODIFIED"}:
+        raise HTTPException(status_code=400, detail="Only approved recommendations can receive outcomes")
+    if outcome.completion_percentage is not None and not 0 <= outcome.completion_percentage <= 100:
+        raise HTTPException(status_code=422, detail="completion_percentage must be between 0 and 100")
+
+    payload = outcome.model_dump(exclude_none=True)
+    db.add(ActivityLog(
+        resort_id=current_user.resort_id,
+        user_id=current_user.id,
+        user_name=current_user.name,
+        user_role=current_user.role,
+        action_type="RECOMMENDATION_OUTCOME_RECORDED",
+        entity_type="recommendation",
+        entity_id=recommendation.id,
+        description=f"{current_user.name} recorded the outcome for recommendation '{recommendation.title}'",
+        details_json={
+            "recommendation_id": recommendation.id,
+            "predicted_metrics": recommendation.metrics_data or {},
+            "actual_outcome": payload,
+        },
+    ))
+    db.commit()
+    return {"success": True, "recommendation_id": recommendation.id, "outcome": payload}
+
+
+@router.get("/{recommendation_id}/outcomes")
+def get_recommendation_outcomes(
+    recommendation_id: int,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Read the recommendation's recorded outcome history."""
+    return db.query(ActivityLog).filter(
+        ActivityLog.resort_id == current_user.resort_id,
+        ActivityLog.entity_type == "recommendation",
+        ActivityLog.entity_id == recommendation_id,
+        ActivityLog.action_type == "RECOMMENDATION_OUTCOME_RECORDED",
+    ).order_by(ActivityLog.created_at.desc()).all()

@@ -1,11 +1,15 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import declarative_base, sessionmaker
 from dotenv import load_dotenv
+from pathlib import Path
 import os
 
-load_dotenv()
+BACKEND_DIR = Path(__file__).resolve().parents[2]
+load_dotenv(BACKEND_DIR / ".env")
 
-DATABASE_URL = os.getenv("DATABASE_URL", "sqlite:///./resort360.db")
+DATABASE_URL = os.getenv("DATABASE_URL")
+if not DATABASE_URL:
+    DATABASE_URL = f"sqlite:///{(BACKEND_DIR / 'resort360.db').as_posix()}"
 
 # If using PostgreSQL with postgres:// (e.g. older Render/Supabase URL scheme), convert to postgresql://
 if DATABASE_URL and DATABASE_URL.startswith("postgres://"):

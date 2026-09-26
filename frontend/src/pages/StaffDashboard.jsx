@@ -31,6 +31,17 @@ export const StaffDashboard = () => {
     }
   };
 
+  const handleEscalate = async (taskId) => {
+    const blockerReason = window.prompt('What is blocking this task?');
+    if (!blockerReason) return;
+    try {
+      await tasksAPI.escalate(taskId, blockerReason);
+      await fetchData();
+    } catch (err) {
+      alert('Failed to escalate: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -90,6 +101,12 @@ export const StaffDashboard = () => {
                       Room {task.room_number}
                     </span>
                   )}
+                  {task.is_overdue && (
+                    <p className="text-xs font-semibold text-red-400 mt-2">Overdue by {task.minutes_overdue} min</p>
+                  )}
+                  {task.blocker_reason && (
+                    <p className="text-xs text-orange-300 mt-1">Blocked: {task.blocker_reason}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <span className={`px-2.5 py-0.5 text-[10px] font-semibold rounded-full border ${getPriorityColor(task.priority)}`}>
@@ -120,6 +137,15 @@ export const StaffDashboard = () => {
                   >
                     <CheckCircle2 className="w-4 h-4" />
                     <span>Mark Complete</span>
+                  </button>
+                )}
+
+                {task.status !== 'COMPLETED' && task.status !== 'ESCALATED' && (
+                  <button
+                    onClick={() => handleEscalate(task.id)}
+                    className="px-3 py-1.5 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-200 rounded-lg transition"
+                  >
+                    Report Blocker
                   </button>
                 )}
 

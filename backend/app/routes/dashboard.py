@@ -4,7 +4,8 @@ from sqlalchemy import func, and_, desc
 from typing import Dict, Any
 
 from app.database.connection import get_db
-from app.models import User, Recommendation, Task, Room, Booking, ActivityLog, Department
+from app.models import User, Recommendation, Task, Room, Booking, ActivityLog, Department, GuestRequest, InventoryItem
+from app.services.forecast_engine import ForecastEngine
 from app.utils.auth import get_current_user
 from datetime import datetime, timedelta
 
@@ -21,11 +22,13 @@ def get_manager_dashboard(
     resort_id = current_user.resort_id
 
     # KPIs
-    total_rooms = db.query(func.count(Room.id)).filter(Room.resort_id == resort_id).scalar() or 100
+    capacity = ForecastEngine(db, resort_id).get_room_capacity()
+    total_rooms = capacity["total_rooms"]
+    sellable_rooms = capacity["sellable_rooms"]
 
     # Today's occupancy
     today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
-    today_occupied = db.query(func.count(Booking.id)).filter(
+    today_occupied = db.query(func.count(func.distinct(Booking.room_id))).filter(
         and_(
             Booking.resort_id == resort_id,
             Booking.check_in <= today,
@@ -34,7 +37,16 @@ def get_manager_dashboard(
         )
     ).scalar() or 0
 
-    occupancy_pct = (today_occupied / total_rooms * 100) if total_rooms > 0 else 0
+    occupancy_pct = min((today_occupied / sellable_rooms * 100), 100) if sellable_rooms > 0 else 0
+
+    booking_demand = db.query(func.count(Booking.id)).filter(
+        and_(
+            Booking.resort_id == resort_id,
+            Booking.check_in <= today,
+            Booking.check_out > today,
+            Booking.status.in_(["confirmed", "checked_in"])
+        )
+    ).scalar() or 0
 
     # Tomorrow's check-ins
     tomorrow = today + timedelta(days=1)
@@ -59,8 +71,18 @@ def get_manager_dashboard(
         and_(
             Task.resort_id == resort_id,
             Task.priority.in_(["HIGH", "CRITICAL"]),
-            Task.status.in_(["PENDING", "IN_PROGRESS"])
+            Task.status.in_(["PENDING", "ASSIGNED", "IN_PROGRESS", "BLOCKED", "ESCALATED"])
         )
+    ).count()
+
+    open_tasks = db.query(Task).filter(
+        and_(Task.resort_id == resort_id, Task.status.notin_(["COMPLETED", "CANCELLED"]))
+    ).all()
+    open_guest_issues = db.query(GuestRequest).filter(
+        and_(GuestRequest.resort_id == resort_id, GuestRequest.status.in_(["PENDING", "IN_PROGRESS"]))
+    ).count()
+    inventory_risks = db.query(InventoryItem).filter(
+        and_(InventoryItem.resort_id == resort_id, InventoryItem.current_stock <= InventoryItem.reorder_threshold)
     ).count()
 
     # Recent activity logs
@@ -78,9 +100,19 @@ def get_manager_dashboard(
             "current_occupancy_pct": round(occupancy_pct, 1),
             "occupied_rooms": today_occupied,
             "total_rooms": total_rooms,
+            "sellable_rooms": sellable_rooms,
+            "booking_demand": booking_demand,
+            "overbooking_count": max(booking_demand - sellable_rooms, 0),
             "tomorrow_check_ins": tomorrow_check_ins,
             "pending_recommendations": len(pending_recommendations),
-            "critical_tasks": critical_tasks
+            "critical_tasks": critical_tasks,
+            "open_tasks": len(open_tasks),
+            "overdue_tasks": sum(1 for task in open_tasks if task.is_overdue),
+            "blocked_tasks": sum(1 for task in open_tasks if task.status == "BLOCKED"),
+            "escalated_tasks": sum(1 for task in open_tasks if task.status == "ESCALATED"),
+            "open_guest_issues": open_guest_issues,
+            "inventory_risks": inventory_risks,
+            "rooms_unavailable": capacity["unavailable_rooms"]
         },
         "pending_recommendations": [
             {
@@ -237,6 +269,10 @@ def get_department_dashboard(
             "pending": pending_tasks,
             "in_progress": in_progress_tasks,
             "completed": completed_tasks,
+            "assigned": sum(1 for t in tasks if t.status == "ASSIGNED"),
+            "blocked": sum(1 for t in tasks if t.status == "BLOCKED"),
+            "escalated": sum(1 for t in tasks if t.status == "ESCALATED"),
+            "overdue": sum(1 for t in tasks if t.is_overdue),
             "total": len(tasks)
         },
         "tasks": [
@@ -250,6 +286,12 @@ def get_department_dashboard(
                 "assignee_id": t.assigned_to,
                 "room_number": t.room_number,
                 "due_date": t.due_date.isoformat() if t.due_date else None,
+                "sla_minutes": t.sla_minutes,
+                "blocker_reason": t.blocker_reason,
+                "escalated_to_user_id": t.escalated_to_user_id,
+                "escalated_at": t.escalated_at.isoformat() if t.escalated_at else None,
+                "is_overdue": t.is_overdue,
+                "minutes_overdue": t.minutes_overdue,
                 "created_at": t.created_at.isoformat()
             }
             for t in tasks
@@ -296,13 +338,23 @@ def get_staff_dashboard(
                 "status": t.status,
                 "room_number": t.room_number,
                 "due_date": t.due_date.isoformat() if t.due_date else None,
+                "sla_minutes": t.sla_minutes,
+                "blocker_reason": t.blocker_reason,
+                "escalated_to_user_id": t.escalated_to_user_id,
+                "escalated_at": t.escalated_at.isoformat() if t.escalated_at else None,
+                "is_overdue": t.is_overdue,
+                "minutes_overdue": t.minutes_overdue,
                 "created_at": t.created_at.isoformat()
             }
             for t in my_tasks
         ],
         "summary": {
             "pending": sum(1 for t in my_tasks if t.status == "PENDING"),
+            "assigned": sum(1 for t in my_tasks if t.status == "ASSIGNED"),
             "in_progress": sum(1 for t in my_tasks if t.status == "IN_PROGRESS"),
+            "blocked": sum(1 for t in my_tasks if t.status == "BLOCKED"),
+            "escalated": sum(1 for t in my_tasks if t.status == "ESCALATED"),
+            "overdue": sum(1 for t in my_tasks if t.is_overdue),
             "completed_today": sum(
                 1 for t in my_tasks
                 if t.status == "COMPLETED" and t.completed_at and t.completed_at.date() == datetime.utcnow().date()

@@ -97,13 +97,13 @@ export const ManagerDashboard = () => {
       {/* Header */}
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-white mb-2 flex items-center gap-3">
-          <span className="w-10 h-10 rounded-xl bg-gradient-to-tr from-sky-500 to-indigo-600 flex items-center justify-center shadow-lg">
-            <Activity className="w-6 h-6 text-white" />
+          <span className="w-10 h-10 rounded-xl bg-brass-50 border border-brass-200 flex items-center justify-center shadow-card">
+            <Activity className="w-6 h-6 text-brass-700" />
           </span>
           Manager Command Center
         </h1>
         <p className="text-sm text-slate-400">
-          Operational insights, AI-driven recommendations, and closed-loop decision orchestration
+          Today's operations, decisions requiring attention, and accountable follow-through
         </p>
       </div>
 
@@ -132,7 +132,7 @@ export const ManagerDashboard = () => {
         <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <Sparkles className="w-5 h-5 text-indigo-400" />
-            <span className="text-xs font-semibold text-slate-400">AI ENGINE</span>
+            <span className="text-xs font-semibold text-slate-400">AI INSIGHTS</span>
           </div>
           <p className="text-3xl font-bold text-white">{kpis.pending_recommendations}</p>
           <p className="text-xs text-slate-400 mt-1">Pending recommendations</p>
@@ -141,12 +141,37 @@ export const ManagerDashboard = () => {
         <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-5">
           <div className="flex items-center justify-between mb-2">
             <AlertTriangle className="w-5 h-5 text-orange-400" />
-            <span className="text-xs font-semibold text-slate-400">OPERATIONS</span>
+            <span className="text-xs font-semibold text-slate-400">OPEN RISKS</span>
           </div>
           <p className="text-3xl font-bold text-white">{kpis.critical_tasks}</p>
-          <p className="text-xs text-slate-400 mt-1">High-priority tasks</p>
+          <p className="text-xs text-slate-400 mt-1">Critical or high-priority tasks</p>
         </div>
       </div>
+
+      {/* Manager attention queue */}
+      <section className="surface p-5 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-charcoal-900">Today's operations</h2>
+            <p className="text-xs text-charcoal-500 mt-1">The work that needs a decision, assignment, or follow-up.</p>
+          </div>
+          <span className="ai-label">Operations queue</span>
+        </div>
+        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+          {[
+            ['Overdue tasks', kpis.overdue_tasks, 'text-status-criticalText'],
+            ['Escalated', kpis.escalated_tasks, 'text-status-criticalText'],
+            ['Blocked', kpis.blocked_tasks, 'text-status-warningText'],
+            ['Guest issues', kpis.open_guest_issues, 'text-forest-700'],
+            ['Inventory risks', kpis.inventory_risks, 'text-brass-700']
+          ].map(([label, value, color]) => (
+            <div key={label} className="bg-ivory-100 border border-ivory-300 rounded-lg p-3">
+              <p className="text-[11px] font-semibold uppercase tracking-wide text-charcoal-500">{label}</p>
+              <p className={`text-2xl font-bold mt-1 ${color}`}>{value || 0}</p>
+            </div>
+          ))}
+        </div>
+      </section>
 
       {/* AI Recommendations Section */}
       <div className="mb-8">

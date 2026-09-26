@@ -20,6 +20,18 @@ class ForecastEngine:
         self.model = LinearRegression()
         self.scaler = StandardScaler()
 
+    def get_room_capacity(self) -> Dict[str, int]:
+        """Return physical and currently sellable room capacity."""
+        total_rooms = self.db.query(Room).filter(Room.resort_id == self.resort_id).count()
+        unavailable_rooms = self.db.query(Room).filter(
+            and_(Room.resort_id == self.resort_id, Room.status.in_(["maintenance", "out_of_service"]))
+        ).count()
+        return {
+            "total_rooms": total_rooms or 100,
+            "unavailable_rooms": unavailable_rooms,
+            "sellable_rooms": max((total_rooms or 100) - unavailable_rooms, 0),
+        }
+
     def get_historical_occupancy_data(self, days_back: int = 90) -> pd.DataFrame:
         """
         Extract historical occupancy patterns from bookings.
@@ -39,9 +51,8 @@ class ForecastEngine:
         ).all()
 
         # Get total rooms
-        total_rooms = self.db.query(Room).filter(Room.resort_id == self.resort_id).count()
-        if total_rooms == 0:
-            total_rooms = 100  # Default fallback
+        capacity = self.get_room_capacity()
+        total_rooms = capacity["sellable_rooms"]
 
         # Build daily occupancy records
         records = []
@@ -159,7 +170,7 @@ class ForecastEngine:
         target_date_only = target_date.date()
 
         # Rooms occupied on target date (check_in <= target < check_out)
-        occupied = self.db.query(func.count(Booking.id)).filter(
+        occupied = self.db.query(func.count(func.distinct(Booking.room_id))).filter(
             and_(
                 Booking.resort_id == self.resort_id,
                 Booking.check_in <= target_date,
@@ -196,8 +207,18 @@ class ForecastEngine:
             )
         ).scalar() or 0
 
+        booking_demand = self.db.query(func.count(Booking.id)).filter(
+            and_(
+                Booking.resort_id == self.resort_id,
+                Booking.check_in <= target_date,
+                Booking.check_out > target_date,
+                Booking.status.in_(["confirmed", "checked_in"])
+            )
+        ).scalar() or 0
+
         return {
             "occupied_rooms": occupied,
+            "booking_demand_count": booking_demand,
             "check_ins": check_ins,
             "check_outs": check_outs,
             "early_arrivals": early_arrivals
@@ -208,9 +229,9 @@ class ForecastEngine:
         Generate 7-day occupancy forecast combining ML predictions with confirmed bookings.
         """
         # Get total rooms
-        total_rooms = self.db.query(Room).filter(Room.resort_id == self.resort_id).count()
-        if total_rooms == 0:
-            total_rooms = 100
+        capacity = self.get_room_capacity()
+        total_rooms = capacity["total_rooms"]
+        sellable_rooms = capacity["sellable_rooms"]
 
         # Get and train on historical data
         historical_df = self.get_historical_occupancy_data(days_back=90)
@@ -231,20 +252,20 @@ class ForecastEngine:
             confirmed_data = self.get_confirmed_occupancy(target_date)
 
             # Separate physical occupancy from booking demand
-            booking_demand_count = confirmed_data["occupied_rooms"]  # Total bookings (can exceed capacity)
-            overbooking_count = max(0, booking_demand_count - total_rooms)
+            booking_demand_count = confirmed_data["booking_demand_count"]
+            overbooking_count = max(0, booking_demand_count - sellable_rooms)
 
             # If we have confirmed bookings, use them; otherwise predict
             if booking_demand_count > 0:
                 # Physical occupancy CANNOT exceed total rooms (cap at 100%)
-                actual_occupied = min(booking_demand_count, total_rooms)
-                occupancy_pct = (actual_occupied / total_rooms) * 100  # Will be ≤ 100%
+                actual_occupied = min(confirmed_data["occupied_rooms"], sellable_rooms)
+                occupancy_pct = (actual_occupied / sellable_rooms) * 100 if sellable_rooms else 0
                 ml_confidence = 1.0  # High confidence for confirmed bookings
             else:
                 # Use ML prediction (already capped at 100% in predict_occupancy)
                 occupancy_pct, ml_confidence = self.predict_occupancy(target_date, recent_occupancy)
                 occupancy_pct = min(100.0, occupancy_pct)  # Extra safety cap
-                actual_occupied = int((occupancy_pct / 100) * total_rooms)
+                actual_occupied = int((occupancy_pct / 100) * sellable_rooms)
                 booking_demand_count = actual_occupied
                 overbooking_count = 0
 
@@ -271,6 +292,7 @@ class ForecastEngine:
                 "booking_demand_count": booking_demand_count,  # Total bookings (can exceed capacity)
                 "overbooking_count": overbooking_count,  # Bookings beyond capacity
                 "total_rooms": total_rooms,
+                "sellable_rooms": sellable_rooms,
                 "check_ins": confirmed_data["check_ins"],
                 "check_outs": confirmed_data["check_outs"],
                 "early_arrivals": confirmed_data["early_arrivals"],
@@ -302,7 +324,8 @@ class ForecastEngine:
                 "peak_occupancy_date": peak_day["date"],
                 "peak_occupancy_pct": peak_day["predicted_occupancy_pct"],
                 "total_expected_revenue_7d": total_revenue,
-                "total_rooms": total_rooms
+                "total_rooms": total_rooms,
+                "sellable_rooms": sellable_rooms
             },
             "model_metadata": model_metadata
         }

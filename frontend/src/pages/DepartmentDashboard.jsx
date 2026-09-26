@@ -32,6 +32,17 @@ export const DepartmentDashboard = () => {
     }
   };
 
+  const handleEscalate = async (taskId) => {
+    const blockerReason = window.prompt('What is blocking this task?');
+    if (!blockerReason) return;
+    try {
+      await tasksAPI.escalate(taskId, blockerReason);
+      await fetchData();
+    } catch (err) {
+      alert('Failed to escalate: ' + (err.response?.data?.detail || err.message));
+    }
+  };
+
   if (loading) {
     return (
       <div className="flex items-center justify-center min-h-screen">
@@ -51,7 +62,7 @@ export const DepartmentDashboard = () => {
       </div>
 
       {/* Task Summary */}
-      <div className="grid grid-cols-3 gap-4 mb-8">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-4 mb-8">
         <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
           <p className="text-xs text-slate-400 mb-1">Pending</p>
           <p className="text-2xl font-bold text-yellow-400">{data?.task_summary?.pending || 0}</p>
@@ -63,6 +74,14 @@ export const DepartmentDashboard = () => {
         <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
           <p className="text-xs text-slate-400 mb-1">Completed</p>
           <p className="text-2xl font-bold text-emerald-400">{data?.task_summary?.completed || 0}</p>
+        </div>
+        <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
+          <p className="text-xs text-slate-400 mb-1">Overdue</p>
+          <p className="text-2xl font-bold text-red-400">{data?.task_summary?.overdue || 0}</p>
+        </div>
+        <div className="bg-slate-800/80 border border-slate-700 rounded-xl p-4">
+          <p className="text-xs text-slate-400 mb-1">Escalated</p>
+          <p className="text-2xl font-bold text-orange-400">{data?.task_summary?.escalated || 0}</p>
         </div>
       </div>
 
@@ -83,6 +102,12 @@ export const DepartmentDashboard = () => {
                     <span className="inline-block mt-2 px-2 py-0.5 bg-slate-800 text-slate-300 text-xs rounded border border-slate-700">
                       Room {task.room_number}
                     </span>
+                  )}
+                  {task.is_overdue && (
+                    <p className="text-xs font-semibold text-red-400 mt-2">Overdue by {task.minutes_overdue} min</p>
+                  )}
+                  {task.blocker_reason && (
+                    <p className="text-xs text-orange-300 mt-1">Blocked: {task.blocker_reason}</p>
                   )}
                 </div>
                 <div className="flex items-center gap-2 ml-4">
@@ -111,6 +136,14 @@ export const DepartmentDashboard = () => {
                       </option>
                     ))}
                   </select>
+                )}
+                {task.status !== 'COMPLETED' && task.status !== 'ESCALATED' && (
+                  <button
+                    onClick={() => handleEscalate(task.id)}
+                    className="ml-auto px-3 py-1.5 text-xs font-semibold text-red-400 bg-red-500/10 border border-red-200 rounded-lg hover:bg-red-100"
+                  >
+                    Escalate
+                  </button>
                 )}
               </div>
             </div>

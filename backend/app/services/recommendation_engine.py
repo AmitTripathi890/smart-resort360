@@ -160,7 +160,8 @@ class RecommendationEngine:
                     ),
                     priority=rec.priority,
                     status="PENDING",
-                    due_date=datetime.utcnow() + timedelta(days=1)
+                    due_date=datetime.utcnow() + timedelta(days=1),
+                    sla_minutes=1440
                 )
                 self.db.add(task)
                 created_tasks.append(task)
@@ -314,7 +315,8 @@ class RecommendationEngine:
                     description=f"Manager-modified action from recommendation: {notes or 'Increased/Adjusted staffing'}",
                     priority=rec.priority,
                     status="PENDING",
-                    due_date=datetime.utcnow() + timedelta(days=1)
+                    due_date=datetime.utcnow() + timedelta(days=1),
+                    sla_minutes=1440
                 )
                 self.db.add(task)
 

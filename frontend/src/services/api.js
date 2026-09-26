@@ -44,6 +44,8 @@ export const recommendationsAPI = {
   approve: (id) => api.post(`/api/recommendations/${id}/approve`),
   reject: (id, data) => api.post(`/api/recommendations/${id}/reject`, data),
   modify: (id, data) => api.post(`/api/recommendations/${id}/modify`, data),
+  recordOutcome: (id, data) => api.post(`/api/recommendations/${id}/outcome`, data),
+  getOutcomes: (id) => api.get(`/api/recommendations/${id}/outcomes`),
 };
 
 // Tasks endpoints
@@ -52,6 +54,11 @@ export const tasksAPI = {
   create: (data) => api.post('/api/tasks', data),
   assign: (id, assignedTo) => api.patch(`/api/tasks/${id}/assign`, { assigned_to: assignedTo }),
   updateStatus: (id, status) => api.patch(`/api/tasks/${id}/status`, { status }),
+  escalate: (id, blockerReason, escalateToUserId = null) =>
+    api.patch(`/api/tasks/${id}/escalate`, {
+      blocker_reason: blockerReason,
+      escalate_to_user_id: escalateToUserId
+    }),
 };
 
 // Inventory endpoints
@@ -66,6 +73,7 @@ export const inventoryAPI = {
 // Guest requests endpoints
 export const guestRequestsAPI = {
   create: (data) => api.post('/api/guest-requests', data),
+  createInternal: (data) => api.post('/api/guest-requests/internal', data),
   getAll: (status) => api.get('/api/guest-requests', { params: { status } }),
   updateStatus: (id, status) => api.patch(`/api/guest-requests/${id}/status`, { status }),
 };

@@ -77,7 +77,7 @@ export const GuestRequest = () => {
       <div className="max-w-2xl w-full">
         {/* Header */}
         <div className="text-center mb-8">
-          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-gradient-to-tr from-sky-500 to-indigo-600 mb-4 shadow-lg shadow-sky-500/30">
+          <div className="inline-flex items-center justify-center w-14 h-14 rounded-full bg-forest-900 mb-4 shadow-btn">
             <QrCode className="w-7 h-7 text-white" />
           </div>
           <h1 className="text-3xl font-bold text-white mb-2">Guest Service Request</h1>
@@ -182,7 +182,7 @@ export const GuestRequest = () => {
             <button
               type="submit"
               disabled={loading}
-              className="w-full py-3 px-4 bg-gradient-to-r from-sky-600 to-indigo-600 hover:from-sky-500 hover:to-indigo-500 text-white font-bold text-base rounded-lg shadow-xl shadow-sky-600/30 transition disabled:opacity-50 flex items-center justify-center space-x-2"
+              className="btn-primary w-full py-3 text-base disabled:opacity-50"
             >
               <Send className="w-5 h-5" />
               <span>{loading ? 'Submitting...' : 'Submit Service Request'}</span>

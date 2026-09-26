@@ -84,16 +84,16 @@ export const ActivityLog = () => {
                   <div className="mt-0.5">{getActionIcon(log.action_type)}</div>
                   <div className="flex-1">
                     <div className="flex items-center justify-between mb-1">
-                      <p className="text-xs font-mono font-bold text-sky-300 uppercase tracking-wider">
+                      <p className="text-xs font-bold text-forest-700 uppercase tracking-wider">
                         {log.action_type.replace(/_/g, ' ')}
                       </p>
                       <span className="text-xs text-slate-500">{formatDateTime(log.created_at)}</span>
                     </div>
-                    <p className="text-sm text-slate-200 leading-relaxed">{log.description}</p>
+                    <p className="text-sm text-charcoal-700 leading-relaxed">{log.description}</p>
                     <div className="flex items-center gap-2 mt-1.5">
-                      <span className="text-xs text-slate-500">By:</span>
-                      <span className="text-xs font-semibold text-white">{log.user_name}</span>
-                      <span className="px-1.5 py-0.5 bg-slate-700 text-slate-300 text-[10px] rounded font-mono">
+                      <span className="text-xs text-charcoal-500">By:</span>
+                      <span className="text-xs font-semibold text-charcoal-900">{log.user_name}</span>
+                      <span className="px-1.5 py-0.5 bg-sage-50 text-forest-700 text-[10px] rounded border border-sage-200">
                         {log.user_role}
                       </span>
                     </div>

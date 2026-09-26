@@ -2,12 +2,65 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from typing import List
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.database.connection import get_db
 from app.models import User, Task, Department, ActivityLog
 from app.schemas import TaskResponse, TaskCreate, TaskAssignRequest, TaskStatusRequest, TaskEscalateRequest
-from app.utils.auth import get_current_user, require_role
+from app.utils.auth import get_current_user
+TASK_STATUSES = {"PENDING", "ASSIGNED", "IN_PROGRESS", "BLOCKED", "ESCALATED", "COMPLETED", "CANCELLED"}
+TASK_TRANSITIONS = {
+    "PENDING": {"ASSIGNED", "CANCELLED"},
+    "ASSIGNED": {"IN_PROGRESS", "BLOCKED", "CANCELLED"},
+    "IN_PROGRESS": {"BLOCKED", "COMPLETED", "CANCELLED"},
+    "BLOCKED": {"IN_PROGRESS", "ESCALATED", "CANCELLED"},
+    "ESCALATED": {"ASSIGNED", "IN_PROGRESS", "CANCELLED"},
+    "COMPLETED": set(),
+    "CANCELLED": set(),
+}
+
+def serialize_task(task: Task):
+    return {
+        "id": task.id,
+        "resort_id": task.resort_id,
+        "recommendation_id": task.recommendation_id,
+        "department_id": task.department_id,
+        "department_name": task.department.name if task.department else None,
+        "assigned_to": task.assigned_to,
+        "assignee_name": task.assignee.name if task.assignee else "Unassigned",
+        "title": task.title,
+        "description": task.description,
+        "priority": task.priority,
+        "status": task.status,
+        "due_date": task.due_date,
+        "sla_minutes": task.sla_minutes,
+        "room_number": task.room_number,
+        "blocker_reason": task.blocker_reason,
+        "escalated_to_user_id": task.escalated_to_user_id,
+        "escalated_at": task.escalated_at,
+        "is_overdue": task.is_overdue,
+        "minutes_overdue": task.minutes_overdue,
+        "created_at": task.created_at,
+        "completed_at": task.completed_at,
+    }
+
+def scoped_task_query(query, current_user: User):
+    if current_user.role == "MANAGER":
+        return query
+    if current_user.role == "STAFF":
+        return query.filter(Task.assigned_to == current_user.id)
+    if current_user.role == "DEPARTMENT_HEAD":
+        if not current_user.department_id:
+            raise HTTPException(status_code=403, detail="User is not assigned to a department")
+        return query.filter(Task.department_id == current_user.department_id)
+    if current_user.role == "FRONT_DESK":
+        return query.join(Department).filter(Department.name.ilike("%front desk%"))
+    raise HTTPException(status_code=403, detail="Role cannot access operational tasks")
+
+def can_manage_task(task: Task, current_user: User):
+    if current_user.role == "MANAGER":
+        return True
+    return current_user.role == "DEPARTMENT_HEAD" and current_user.department_id == task.department_id
 
 router = APIRouter(prefix="/api/tasks", tags=["Tasks"])
 
@@ -28,6 +81,7 @@ def get_tasks(
     resort_id = current_user.resort_id
 
     query = db.query(Task).filter(Task.resort_id == resort_id)
+    query = scoped_task_query(query, current_user)
 
     if department_id:
         query = query.filter(Task.department_id == department_id)
@@ -40,29 +94,7 @@ def get_tasks(
 
     tasks = query.order_by(Task.priority.desc(), Task.created_at.desc()).all()
 
-    # Format response with department and assignee names
-    result = []
-    for t in tasks:
-        task_dict = {
-            "id": t.id,
-            "resort_id": t.resort_id,
-            "recommendation_id": t.recommendation_id,
-            "department_id": t.department_id,
-            "department_name": t.department.name if t.department else None,
-            "assigned_to": t.assigned_to,
-            "assignee_name": t.assignee.name if t.assignee else "Unassigned",
-            "title": t.title,
-            "description": t.description,
-            "priority": t.priority,
-            "status": t.status,
-            "due_date": t.due_date,
-            "room_number": t.room_number,
-            "created_at": t.created_at,
-            "completed_at": t.completed_at
-        }
-        result.append(task_dict)
-
-    return result
+    return [serialize_task(task) for task in tasks]
 
 
 @router.post("", response_model=TaskResponse)
@@ -75,6 +107,10 @@ def create_task(
     Manually create a new operational task.
     """
     resort_id = current_user.resort_id
+    if current_user.role not in {"MANAGER", "DEPARTMENT_HEAD"}:
+        raise HTTPException(status_code=403, detail="Only managers and department heads can create tasks")
+    if current_user.role == "DEPARTMENT_HEAD" and task_in.department_id != current_user.department_id:
+        raise HTTPException(status_code=403, detail="You can only create tasks in your department")
 
     # Calculate SLA if not provided
     sla_minutes = task_in.sla_minutes
@@ -98,7 +134,7 @@ def create_task(
         due_date=due_date,
         sla_minutes=sla_minutes,
         room_number=task_in.room_number,
-        status="PENDING"
+        status="ASSIGNED" if task_in.assigned_to else "PENDING"
     )
     db.add(task)
     db.commit()
@@ -119,27 +155,7 @@ def create_task(
     db.add(log)
     db.commit()
 
-    return {
-        "id": task.id,
-        "resort_id": task.resort_id,
-        "recommendation_id": task.recommendation_id,
-        "department_id": task.department_id,
-        "department_name": task.department.name if task.department else None,
-        "assigned_to": task.assigned_to,
-        "assignee_name": task.assignee.name if task.assignee else "Unassigned",
-        "title": task.title,
-        "description": task.description,
-        "priority": task.priority,
-        "status": task.status,
-        "due_date": task.due_date,
-        "sla_minutes": task.sla_minutes,
-        "room_number": task.room_number,
-        "blocker_reason": task.blocker_reason,
-        "escalated_to_user_id": task.escalated_to_user_id,
-        "escalated_at": task.escalated_at,
-        "created_at": task.created_at,
-        "completed_at": task.completed_at
-    }
+    return serialize_task(task)
 
 
 @router.patch("/{task_id}/assign")
@@ -162,15 +178,22 @@ def assign_task(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    if not can_manage_task(task, current_user):
+        raise HTTPException(status_code=403, detail="You cannot assign tasks outside your scope")
+
     staff = db.query(User).filter(
         and_(User.id == request.assigned_to, User.resort_id == resort_id)
     ).first()
 
     if not staff:
         raise HTTPException(status_code=404, detail="Staff user not found")
+    if staff.role != "STAFF" or staff.department_id != task.department_id:
+        raise HTTPException(status_code=400, detail="Task must be assigned to staff in its department")
 
     old_assignee = task.assignee.name if task.assignee else "Unassigned"
     task.assigned_to = staff.id
+    if task.status in {"PENDING", "ESCALATED"}:
+        task.status = "ASSIGNED"
 
     log = ActivityLog(
         resort_id=resort_id,
@@ -191,6 +214,7 @@ def assign_task(
         "task_id": task.id,
         "assigned_to": staff.id,
         "assignee_name": staff.name,
+        "status": task.status,
         "message": f"Task assigned to {staff.name}"
     }
 
@@ -215,8 +239,23 @@ def update_task_status(
     if not task:
         raise HTTPException(status_code=404, detail="Task not found")
 
+    if current_user.role == "STAFF" and task.assigned_to != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only update your assigned tasks")
+    if current_user.role == "DEPARTMENT_HEAD" and task.department_id != current_user.department_id:
+        raise HTTPException(status_code=403, detail="You can only update tasks in your department")
+    if current_user.role not in {"MANAGER", "STAFF", "DEPARTMENT_HEAD"}:
+        raise HTTPException(status_code=403, detail="Role cannot update operational tasks")
+
     old_status = task.status
     task.status = request.status.upper()
+    if task.status not in TASK_STATUSES:
+        raise HTTPException(status_code=400, detail=f"Unsupported task status: {task.status}")
+    if task.status not in TASK_TRANSITIONS.get(old_status, set()):
+        raise HTTPException(status_code=400, detail=f"Cannot move task from {old_status} to {task.status}")
+    if task.status == "BLOCKED" and not request.blocker_reason:
+        raise HTTPException(status_code=400, detail="blocker_reason is required when blocking a task")
+    if request.blocker_reason:
+        task.blocker_reason = request.blocker_reason
 
     if task.status == "COMPLETED" and old_status != "COMPLETED":
         task.completed_at = datetime.utcnow()
@@ -242,3 +281,60 @@ def update_task_status(
         "completed_at": task.completed_at.isoformat() if task.completed_at else None,
         "message": f"Task status updated to {task.status}"
     }
+
+
+@router.patch("/{task_id}/escalate")
+def escalate_task(
+    task_id: int,
+    request: TaskEscalateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    task = db.query(Task).filter(
+        and_(Task.id == task_id, Task.resort_id == current_user.resort_id)
+    ).first()
+    if not task:
+        raise HTTPException(status_code=404, detail="Task not found")
+    if current_user.role == "STAFF" and task.assigned_to != current_user.id:
+        raise HTTPException(status_code=403, detail="You can only escalate your assigned tasks")
+    if current_user.role == "DEPARTMENT_HEAD" and task.department_id != current_user.department_id:
+        raise HTTPException(status_code=403, detail="You can only escalate tasks in your department")
+    if current_user.role not in {"MANAGER", "STAFF", "DEPARTMENT_HEAD"}:
+        raise HTTPException(status_code=403, detail="Role cannot escalate tasks")
+    if task.status not in {"BLOCKED", "IN_PROGRESS", "ESCALATED"}:
+        raise HTTPException(status_code=400, detail="Only blocked or active tasks can be escalated")
+
+    target = None
+    if request.escalate_to_user_id:
+        target = db.query(User).filter(
+            and_(User.id == request.escalate_to_user_id, User.resort_id == current_user.resort_id)
+        ).first()
+        if not target or target.role not in {"DEPARTMENT_HEAD", "MANAGER"}:
+            raise HTTPException(status_code=400, detail="Escalation target must be a department head or manager")
+    else:
+        target = db.query(User).filter(
+            and_(User.resort_id == current_user.resort_id, User.department_id == task.department_id,
+                 User.role == "DEPARTMENT_HEAD")
+        ).first()
+
+    old_status = task.status
+    task.blocker_reason = request.blocker_reason
+    task.escalated_to_user_id = target.id if target else None
+    task.escalated_at = datetime.utcnow()
+    task.status = "ESCALATED"
+    db.add(ActivityLog(
+        resort_id=current_user.resort_id,
+        user_id=current_user.id,
+        user_name=current_user.name,
+        user_role=current_user.role,
+        action_type="TASK_ESCALATED",
+        entity_type="task",
+        entity_id=task.id,
+        description=f"{current_user.name} escalated '{task.title}': {request.blocker_reason}",
+        details_json={"old_status": old_status, "blocker_reason": request.blocker_reason,
+                      "escalated_to_user_id": task.escalated_to_user_id}
+    ))
+    db.commit()
+    db.refresh(task)
+    return serialize_task(task)
+

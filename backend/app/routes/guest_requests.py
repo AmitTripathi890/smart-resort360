@@ -2,11 +2,11 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from typing import List, Optional
-from datetime import datetime
+from datetime import datetime, timedelta
 
 from app.database.connection import get_db
 from app.models import GuestRequest, Room, Task, Department, ActivityLog, User
-from app.schemas import GuestRequestCreate, GuestRequestResponse
+from app.schemas import GuestRequestCreate, GuestRequestResponse, InternalGuestRequestCreate
 from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/guest-requests", tags=["Guest Requests"])
@@ -50,12 +50,16 @@ def create_guest_request(
         request_type=request_in.request_type,
         description=request_in.description,
         priority=request_in.priority or "MEDIUM",
-        status="PENDING"
+        status="PENDING",
+        source="GUEST_PORTAL"
     )
     db.add(guest_req)
     db.flush()
 
     # Automatically create operational task for the department
+    sla_minutes = {"CRITICAL": 60, "HIGH": 120, "MEDIUM": 240, "LOW": 480}.get(
+        request_in.priority or "MEDIUM", 240
+    )
     task = Task(
         resort_id=resort_id,
         department_id=dept.id if dept else 1,
@@ -63,7 +67,9 @@ def create_guest_request(
         description=f"Guest {request_in.guest_name or 'In-house'}: {request_in.description}",
         priority=request_in.priority or "MEDIUM",
         status="PENDING",
-        room_number=request_in.room_number
+        room_number=request_in.room_number,
+        sla_minutes=sla_minutes,
+        due_date=datetime.utcnow() + timedelta(minutes=sla_minutes)
     )
     db.add(task)
     db.flush()
@@ -85,6 +91,80 @@ def create_guest_request(
     db.commit()
     db.refresh(guest_req)
 
+    return guest_req
+
+
+@router.post("/internal", response_model=GuestRequestResponse)
+def create_internal_guest_request(
+    request_in: InternalGuestRequestCreate,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Create a request reported by front desk or staff using the same request/task model."""
+    if current_user.role not in {"MANAGER", "FRONT_DESK", "DEPARTMENT_HEAD", "STAFF"}:
+        raise HTTPException(status_code=403, detail="Role cannot create internal guest requests")
+    if request_in.source.upper() not in {"VERBAL_STAFF", "FRONT_DESK", "PHONE", "EMAIL"}:
+        raise HTTPException(status_code=400, detail="Invalid internal request source")
+
+    room = db.query(Room).filter(Room.room_number == request_in.room_number).first()
+    resort_id = current_user.resort_id
+    if room and room.resort_id != resort_id:
+        raise HTTPException(status_code=404, detail="Room not found in your resort")
+
+    req_lower = request_in.request_type.lower()
+    dept_name = "Front Desk"
+    if any(term in req_lower for term in ["ac", "maintenance", "plumb"]):
+        dept_name = "Maintenance"
+    elif any(term in req_lower for term in ["towel", "linen", "clean", "housekeeping"]):
+        dept_name = "Housekeeping"
+    elif any(term in req_lower for term in ["food", "service", "beverage", "dining"]):
+        dept_name = "Food & Beverage"
+    dept = db.query(Department).filter(
+        and_(Department.resort_id == resort_id, Department.name.ilike(f"%{dept_name}%"))
+    ).first()
+    priority = request_in.priority or "MEDIUM"
+    sla_minutes = {"CRITICAL": 60, "HIGH": 120, "MEDIUM": 240, "LOW": 480}.get(priority, 240)
+    guest_req = GuestRequest(
+        resort_id=resort_id,
+        room_id=room.id if room else None,
+        room_number=request_in.room_number,
+        guest_name=request_in.guest_name or "Guest",
+        request_type=request_in.request_type,
+        description=request_in.description,
+        priority=priority,
+        status="PENDING",
+        source=request_in.source.upper(),
+        reported_by_user_id=request_in.reported_by_user_id or current_user.id,
+    )
+    db.add(guest_req)
+    db.flush()
+    task = Task(
+        resort_id=resort_id,
+        department_id=dept.id if dept else current_user.department_id or 1,
+        title=f"Guest Request: Room {request_in.room_number} ({request_in.request_type})",
+        description=f"Reported by {current_user.name}: {request_in.description}",
+        priority=priority,
+        status="PENDING",
+        room_number=request_in.room_number,
+        sla_minutes=sla_minutes,
+        due_date=datetime.utcnow() + timedelta(minutes=sla_minutes),
+    )
+    db.add(task)
+    db.flush()
+    guest_req.task_id = task.id
+    db.add(ActivityLog(
+        resort_id=resort_id,
+        user_id=current_user.id,
+        user_name=current_user.name,
+        user_role=current_user.role,
+        action_type="GUEST_REQUEST_SUBMITTED",
+        entity_type="guest_request",
+        entity_id=guest_req.id,
+        description=f"{current_user.name} submitted a {request_in.source.upper()} request for Room {request_in.room_number}",
+        details_json={"source": request_in.source.upper(), "task_id": task.id, "department": dept_name},
+    ))
+    db.commit()
+    db.refresh(guest_req)
     return guest_req
 
 

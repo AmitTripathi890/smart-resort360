@@ -75,6 +75,8 @@ class TaskResponse(BaseModel):
     blocker_reason: Optional[str] = None
     escalated_to_user_id: Optional[int] = None
     escalated_at: Optional[datetime] = None
+    is_overdue: bool = False
+    minutes_overdue: int = 0
     created_at: datetime
     completed_at: Optional[datetime]
 
@@ -96,6 +98,7 @@ class TaskAssignRequest(BaseModel):
 
 class TaskStatusRequest(BaseModel):
     status: str  # PENDING, ASSIGNED, IN_PROGRESS, BLOCKED, ESCALATED, COMPLETED, CANCELLED
+    blocker_reason: Optional[str] = None
 
 class TaskEscalateRequest(BaseModel):
     blocker_reason: str
@@ -151,6 +154,18 @@ class GuestRequestCreate(BaseModel):
     request_type: str
     description: str
     priority: Optional[str] = "MEDIUM"
+    source: Optional[str] = "GUEST_PORTAL"
+
+class InternalGuestRequestCreate(GuestRequestCreate):
+    source: str = "FRONT_DESK"
+    reported_by_user_id: Optional[int] = None
+
+class RecommendationOutcomeCreate(BaseModel):
+    actual_workload: Optional[float] = None
+    actual_staff_used: Optional[int] = None
+    completion_percentage: Optional[float] = None
+    actual_completion_minutes: Optional[int] = None
+    notes: Optional[str] = None
 
 class GuestRequestResponse(BaseModel):
     id: int
@@ -198,6 +213,7 @@ class DayForecast(BaseModel):
     booking_demand_count: int  # Total bookings (can exceed capacity)
     overbooking_count: int  # Bookings beyond capacity
     total_rooms: int
+    sellable_rooms: int = 0
     check_ins: int
     check_outs: int
     early_arrivals: int

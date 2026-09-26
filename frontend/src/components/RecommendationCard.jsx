@@ -39,14 +39,14 @@ export const RecommendationCard = ({
   };
 
   return (
-    <div className="bg-slate-800/80 border border-slate-700/80 rounded-xl p-5 shadow-lg relative overflow-hidden group hover:border-sky-500/40 transition-all">
+    <div className="surface p-5 relative overflow-hidden group hover:border-sage-400 transition-colors">
       {/* Top Banner & Priority */}
       <div className="flex items-start justify-between gap-3 mb-3">
         <div className="flex items-center gap-2">
-          <div className="p-1.5 rounded-lg bg-sky-500/10 text-sky-400 border border-sky-500/20">
+          <div className="p-1.5 rounded-lg bg-sage-50 text-forest-700 border border-sage-200">
             <Sparkles className="w-4 h-4" />
           </div>
-          <span className="text-xs font-mono font-medium text-slate-400 uppercase tracking-wider">
+          <span className="text-xs font-medium text-charcoal-500 uppercase tracking-wider">
             {recommendation.type} • {recommendation.target_date || 'Upcoming'}
           </span>
         </div>
@@ -62,38 +62,38 @@ export const RecommendationCard = ({
       </div>
 
       {/* Main Title & Action */}
-      <h3 className="text-base font-bold text-white mb-2 leading-snug">
+      <h3 className="text-base font-bold text-charcoal-900 mb-2 leading-snug">
         {recommendation.title}
       </h3>
 
-      <div className="bg-slate-900/60 rounded-lg p-3 border border-slate-700/50 mb-4">
-        <p className="text-xs text-slate-400 font-medium uppercase tracking-wider mb-1 flex items-center gap-1.5">
-          <ArrowRight className="w-3.5 h-3.5 text-sky-400" />
+      <div className="bg-sage-50 rounded-lg p-3 border border-sage-200 mb-4">
+        <p className="text-xs text-charcoal-500 font-medium uppercase tracking-wider mb-1 flex items-center gap-1.5">
+          <ArrowRight className="w-3.5 h-3.5 text-forest-700" />
           Recommended Action
         </p>
-        <p className="text-sm font-semibold text-sky-200">
+        <p className="text-sm font-semibold text-forest-900">
           {recommendation.recommended_action}
         </p>
       </div>
 
       {/* Explainable AI Rationale */}
-      <div className="space-y-3 mb-5 text-xs text-slate-300">
+      <div className="space-y-3 mb-5 text-xs text-charcoal-600">
         <div>
-          <span className="font-semibold text-slate-200 block mb-1 flex items-center gap-1">
-            <Layers className="w-3.5 h-3.5 text-indigo-400" />
+          <span className="font-semibold text-charcoal-900 mb-1 flex items-center gap-1">
+            <Layers className="w-3.5 h-3.5 text-sage-600" />
             Why (Operational Rationale):
           </span>
-          <p className="text-slate-300 leading-relaxed bg-slate-900/30 p-2.5 rounded border border-slate-800 whitespace-pre-line font-mono text-[11px]">
+          <p className="text-charcoal-600 leading-relaxed bg-ivory-100 p-2.5 rounded border border-ivory-300 whitespace-pre-line text-[11px]">
             {recommendation.explanation}
           </p>
         </div>
 
         <div>
-          <span className="font-semibold text-slate-200 block mb-1 flex items-center gap-1">
-            <TrendingUp className="w-3.5 h-3.5 text-emerald-400" />
+          <span className="font-semibold text-charcoal-900 mb-1 flex items-center gap-1">
+            <TrendingUp className="w-3.5 h-3.5 text-status-successText" />
             Expected Impact:
           </span>
-          <p className="text-emerald-300/90 leading-relaxed bg-emerald-950/20 p-2 rounded border border-emerald-900/30">
+          <p className="text-status-successText leading-relaxed bg-status-successBg p-2 rounded border border-green-200">
             {recommendation.expected_impact}
           </p>
         </div>
@@ -101,11 +101,11 @@ export const RecommendationCard = ({
 
       {/* Action Buttons (Approve / Modify / Reject) */}
       {isPending ? (
-        <div className="flex items-center gap-2 pt-3 border-t border-slate-700/60">
+        <div className="flex items-center gap-2 pt-3 border-t border-ivory-300">
           <button
             onClick={() => onApprove(recommendation.id)}
             disabled={isProcessing}
-            className="flex-1 flex items-center justify-center gap-1.5 py-2 px-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg text-xs font-semibold shadow-md shadow-emerald-900/30 transition disabled:opacity-50"
+            className="btn-primary flex-1 text-xs disabled:opacity-50"
           >
             <CheckCircle2 className="w-3.5 h-3.5" />
             <span>Approve & Execute</span>
@@ -114,26 +114,26 @@ export const RecommendationCard = ({
           <button
             onClick={() => setShowModifyModal(true)}
             disabled={isProcessing}
-            className="flex items-center justify-center gap-1 py-2 px-3 bg-slate-700 hover:bg-slate-600 text-slate-200 rounded-lg text-xs font-medium border border-slate-600 transition"
+            className="btn-secondary btn-sm"
             title="Modify parameters"
           >
-            <Edit3 className="w-3.5 h-3.5 text-indigo-300" />
+            <Edit3 className="w-3.5 h-3.5 text-sage-600" />
             <span>Modify</span>
           </button>
 
           <button
             onClick={() => onReject(recommendation.id)}
             disabled={isProcessing}
-            className="flex items-center justify-center gap-1 py-2 px-2.5 bg-red-500/10 hover:bg-red-500/20 text-red-400 rounded-lg text-xs font-medium border border-red-500/30 transition"
+            className="btn-danger btn-sm"
             title="Reject recommendation"
           >
             <XCircle className="w-3.5 h-3.5" />
           </button>
         </div>
       ) : (
-        <div className="pt-3 border-t border-slate-700/60 text-xs text-slate-400 flex items-center justify-between">
-          <span>Processed by: <strong className="text-slate-200">{recommendation.approved_by || 'Manager'}</strong></span>
-          <span className="font-mono text-[11px] text-emerald-400">Closed-Loop Executed ✓</span>
+        <div className="pt-3 border-t border-ivory-300 text-xs text-charcoal-500 flex items-center justify-between">
+          <span>Processed by: <strong className="text-charcoal-900">{recommendation.approved_by || 'Manager'}</strong></span>
+          <span className="text-[11px] text-status-successText">Closed-Loop Executed</span>
         </div>
       )}
 

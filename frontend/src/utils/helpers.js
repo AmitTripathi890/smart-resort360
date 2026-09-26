@@ -28,35 +28,37 @@ export function formatDateTime(dateString) {
 
 export function getPriorityColor(priority) {
   const colors = {
-    CRITICAL: 'bg-red-500/10 text-red-400 border-red-500/20',
-    HIGH: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-    MEDIUM: 'bg-yellow-500/10 text-yellow-400 border-yellow-500/20',
-    LOW: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
+    CRITICAL: 'bg-status-criticalBg text-status-criticalText border-red-200',
+    HIGH: 'bg-status-warningBg text-status-warningText border-amber-200',
+    MEDIUM: 'bg-brass-50 text-brass-700 border-brass-200',
+    LOW: 'bg-status-infoBg text-status-infoText border-blue-200',
   };
   return colors[priority] || colors.MEDIUM;
 }
 
 export function getStatusColor(status) {
   const colors = {
-    PENDING: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-    IN_PROGRESS: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    COMPLETED: 'bg-green-500/10 text-green-400 border-green-500/20',
-    APPROVED: 'bg-green-500/10 text-green-400 border-green-500/20',
-    REJECTED: 'bg-red-500/10 text-red-400 border-red-500/20',
-    MODIFIED: 'bg-purple-500/10 text-purple-400 border-purple-500/20',
-    CANCELLED: 'bg-gray-500/10 text-gray-400 border-gray-500/20',
-    ORDERED: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-    RECEIVED: 'bg-green-500/10 text-green-400 border-green-500/20',
+    PENDING: 'bg-ivory-200 text-charcoal-600 border-ivory-300',
+    IN_PROGRESS: 'bg-status-infoBg text-status-infoText border-blue-200',
+    COMPLETED: 'bg-status-successBg text-status-successText border-green-200',
+    APPROVED: 'bg-status-successBg text-status-successText border-green-200',
+    REJECTED: 'bg-status-criticalBg text-status-criticalText border-red-200',
+    MODIFIED: 'bg-sage-50 text-forest-700 border-sage-200',
+    CANCELLED: 'bg-ivory-200 text-charcoal-600 border-ivory-300',
+    ORDERED: 'bg-status-infoBg text-status-infoText border-blue-200',
+    RECEIVED: 'bg-status-successBg text-status-successText border-green-200',
+    BLOCKED: 'bg-status-warningBg text-status-warningText border-amber-200',
+    ESCALATED: 'bg-status-criticalBg text-status-criticalText border-red-200',
   };
   return colors[status] || colors.PENDING;
 }
 
 export function getRiskColor(risk) {
   const colors = {
-    CRITICAL: 'text-red-400',
-    HIGH: 'text-orange-400',
-    MEDIUM: 'text-yellow-400',
-    LOW: 'text-green-400',
+    CRITICAL: 'text-status-criticalText',
+    HIGH: 'text-status-warningText',
+    MEDIUM: 'text-brass-700',
+    LOW: 'text-status-successText',
   };
   return colors[risk] || colors.LOW;
 }
