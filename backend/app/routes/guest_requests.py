@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Body, Depends, HTTPException
 from sqlalchemy.orm import Session
 from sqlalchemy import and_, desc
 from typing import List, Optional
@@ -7,6 +7,7 @@ from datetime import datetime, timedelta
 from app.database.connection import get_db
 from app.models import GuestRequest, Room, Task, Department, ActivityLog, User
 from app.schemas import GuestRequestCreate, GuestRequestResponse, InternalGuestRequestCreate
+from app.services.room_lifecycle import transition_room_status
 from app.utils.auth import get_current_user
 
 router = APIRouter(prefix="/api/guest-requests", tags=["Guest Requests"])
@@ -40,6 +41,20 @@ def create_guest_request(
             Department.name.ilike(f"%{dept_name}%")
         )
     ).first()
+
+    if room and dept_name == "Maintenance" and room.status != "maintenance":
+        previous_room_status = room.status
+        transition_room_status(room, "maintenance")
+        db.add(ActivityLog(
+            resort_id=resort_id,
+            user_name=f"Guest (Room {request_in.room_number})",
+            user_role="GUEST",
+            action_type="ROOM_STATUS_CHANGED",
+            entity_type="room",
+            entity_id=room.id,
+            description=f"Room {room.room_number} moved to maintenance after an AC/maintenance request",
+            details_json={"old_status": previous_room_status, "new_status": "maintenance"},
+        ))
 
     # Create guest request record
     guest_req = GuestRequest(
@@ -122,6 +137,20 @@ def create_internal_guest_request(
     dept = db.query(Department).filter(
         and_(Department.resort_id == resort_id, Department.name.ilike(f"%{dept_name}%"))
     ).first()
+    if room and dept_name == "Maintenance" and room.status != "maintenance":
+        previous_room_status = room.status
+        transition_room_status(room, "maintenance")
+        db.add(ActivityLog(
+            resort_id=resort_id,
+            user_id=current_user.id,
+            user_name=current_user.name,
+            user_role=current_user.role,
+            action_type="ROOM_STATUS_CHANGED",
+            entity_type="room",
+            entity_id=room.id,
+            description=f"Room {room.room_number} moved to maintenance after a reported issue",
+            details_json={"old_status": previous_room_status, "new_status": "maintenance"},
+        ))
     priority = request_in.priority or "MEDIUM"
     sla_minutes = {"CRITICAL": 60, "HIGH": 120, "MEDIUM": 240, "LOW": 480}.get(priority, 240)
     guest_req = GuestRequest(
@@ -189,7 +218,8 @@ def get_all_guest_requests(
 @router.patch("/{request_id}/status")
 def update_guest_request_status(
     request_id: int,
-    status: str,
+    status: Optional[str] = None,
+    status_payload: Optional[dict] = Body(None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
@@ -205,7 +235,11 @@ def update_guest_request_status(
     if not req:
         raise HTTPException(status_code=404, detail="Guest request not found")
 
-    req.status = status.upper()
+    requested_status = status or (status_payload or {}).get("status")
+    if not requested_status:
+        raise HTTPException(status_code=400, detail="status is required")
+
+    req.status = requested_status.upper()
     if req.status == "COMPLETED":
         req.completed_at = datetime.utcnow()
         if req.task:

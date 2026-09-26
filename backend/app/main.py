@@ -12,7 +12,8 @@ from app.routes import (
     inventory,
     guest_requests,
     activity_log,
-    demo
+    demo,
+    front_desk
 )
 
 # Load environment variables
@@ -51,6 +52,7 @@ app.include_router(inventory.router)
 app.include_router(guest_requests.router)
 app.include_router(activity_log.router)
 app.include_router(demo.router)
+app.include_router(front_desk.router)
 
 
 @app.get("/")

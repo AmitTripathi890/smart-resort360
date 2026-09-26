@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from sqlalchemy.orm import Session
 from typing import Dict, Any
 
@@ -12,7 +12,7 @@ router = APIRouter(prefix="/api/forecast", tags=["Forecasting"])
 
 @router.get("/occupancy", response_model=ForecastOverviewResponse)
 def get_occupancy_forecast(
-    days: int = 7,
+    days: int = Query(7, ge=1, le=30),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -33,13 +33,14 @@ def get_occupancy_forecast(
     resort_id = current_user.resort_id
 
     forecast_engine = ForecastEngine(db, resort_id)
-    forecast_result = forecast_engine.generate_7day_forecast()
+    forecast_result = forecast_engine.generate_forecast(days)
 
     return forecast_result
 
 
 @router.get("/workload")
 def get_workload_forecast(
+    days: int = Query(7, ge=1, le=30),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
@@ -54,7 +55,7 @@ def get_workload_forecast(
     resort_id = current_user.resort_id
 
     forecast_engine = ForecastEngine(db, resort_id)
-    forecast_result = forecast_engine.generate_7day_forecast()
+    forecast_result = forecast_engine.generate_forecast(days)
     forecast_days = forecast_result.get("forecast_days", [])
 
     # Extract workload-specific metrics

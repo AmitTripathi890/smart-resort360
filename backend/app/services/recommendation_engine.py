@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta
 from typing import List, Dict, Any, Optional
 from sqlalchemy.orm import Session
-from sqlalchemy import and_
+from sqlalchemy import and_, update
 
 from app.models import (
     Recommendation, Task, PurchaseOrder, InventoryItem,
@@ -110,22 +110,30 @@ class RecommendationEngine:
         Closed-loop execution:
         Approve recommendation -> Create Tasks or Purchase Orders -> Log in Activity Log.
         """
-        rec = self.db.query(Recommendation).filter(
-            and_(
+        approved_at = datetime.utcnow()
+        result = self.db.execute(
+            update(Recommendation)
+            .where(
                 Recommendation.id == recommendation_id,
-                Recommendation.resort_id == self.resort_id
+                Recommendation.resort_id == self.resort_id,
+                Recommendation.status == "PENDING",
             )
+            .values(status="APPROVED", approved_by=user_name, approved_at=approved_at)
+        )
+        if result.rowcount != 1:
+            self.db.rollback()
+            existing = self.db.query(Recommendation).filter(
+                Recommendation.id == recommendation_id,
+                Recommendation.resort_id == self.resort_id,
+            ).first()
+            if not existing:
+                raise ValueError("Recommendation not found")
+            raise ValueError(f"Recommendation is already {existing.status}")
+
+        rec = self.db.query(Recommendation).filter(
+            Recommendation.id == recommendation_id,
+            Recommendation.resort_id == self.resort_id,
         ).first()
-
-        if not rec:
-            raise ValueError("Recommendation not found")
-
-        if rec.status != "PENDING":
-            raise ValueError(f"Recommendation is already {rec.status}")
-
-        rec.status = "APPROVED"
-        rec.approved_by = user_name
-        rec.approved_at = datetime.utcnow()
 
         created_tasks = []
         created_pos = []
@@ -281,20 +289,31 @@ class RecommendationEngine:
         """
         Modify recommendation parameters (e.g., adjust staff count or purchase quantity) and approve.
         """
-        rec = self.db.query(Recommendation).filter(
-            and_(
+        modified_at = datetime.utcnow()
+        result = self.db.execute(
+            update(Recommendation)
+            .where(
                 Recommendation.id == recommendation_id,
-                Recommendation.resort_id == self.resort_id
+                Recommendation.resort_id == self.resort_id,
+                Recommendation.status == "PENDING",
             )
+            .values(status="MODIFIED", approved_by=user_name, approved_at=modified_at)
+        )
+        if result.rowcount != 1:
+            self.db.rollback()
+            existing = self.db.query(Recommendation).filter(
+                Recommendation.id == recommendation_id,
+                Recommendation.resort_id == self.resort_id,
+            ).first()
+            if not existing:
+                raise ValueError("Recommendation not found")
+            raise ValueError(f"Recommendation is already {existing.status}")
+
+        rec = self.db.query(Recommendation).filter(
+            Recommendation.id == recommendation_id,
+            Recommendation.resort_id == self.resort_id,
         ).first()
-
-        if not rec:
-            raise ValueError("Recommendation not found")
-
-        rec.status = "MODIFIED"
         rec.modified_details = f"Adjusted quantity to {modified_quantity}. Notes: {notes or 'None'}"
-        rec.approved_by = user_name
-        rec.approved_at = datetime.utcnow()
 
         # Update metrics data
         metrics = rec.metrics_data or {}

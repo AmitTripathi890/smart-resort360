@@ -259,6 +259,10 @@ def update_task_status(
 
     if task.status == "COMPLETED" and old_status != "COMPLETED":
         task.completed_at = datetime.utcnow()
+        for guest_request in task.guest_requests:
+            if guest_request.status != "COMPLETED":
+                guest_request.status = "COMPLETED"
+                guest_request.completed_at = task.completed_at
 
     log = ActivityLog(
         resort_id=resort_id,
@@ -313,9 +317,13 @@ def escalate_task(
             raise HTTPException(status_code=400, detail="Escalation target must be a department head or manager")
     else:
         target = db.query(User).filter(
-            and_(User.resort_id == current_user.resort_id, User.department_id == task.department_id,
-                 User.role == "DEPARTMENT_HEAD")
+            and_(User.resort_id == current_user.resort_id, User.role == "MANAGER")
         ).first()
+        if not target:
+            target = db.query(User).filter(
+                and_(User.resort_id == current_user.resort_id, User.department_id == task.department_id,
+                     User.role == "DEPARTMENT_HEAD")
+            ).first()
 
     old_status = task.status
     task.blocker_reason = request.blocker_reason

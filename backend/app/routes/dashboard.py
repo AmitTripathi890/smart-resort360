@@ -6,14 +6,14 @@ from typing import Dict, Any
 from app.database.connection import get_db
 from app.models import User, Recommendation, Task, Room, Booking, ActivityLog, Department, GuestRequest, InventoryItem
 from app.services.forecast_engine import ForecastEngine
-from app.utils.auth import get_current_user
+from app.utils.auth import get_current_user, require_role
 from datetime import datetime, timedelta
 
 router = APIRouter(prefix="/api/dashboard", tags=["Dashboards"])
 
 @router.get("/manager")
 def get_manager_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["MANAGER"])),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -85,6 +85,53 @@ def get_manager_dashboard(
         and_(InventoryItem.resort_id == resort_id, InventoryItem.current_stock <= InventoryItem.reorder_threshold)
     ).count()
 
+    def serialize_task(task):
+        return {
+            "id": task.id,
+            "title": task.title,
+            "room_number": task.room_number,
+            "priority": task.priority,
+            "status": task.status,
+            "department": task.department.name if task.department else None,
+            "assignee": task.assignee.name if task.assignee else "Unassigned",
+            "minutes_overdue": task.minutes_overdue,
+            "blocker_reason": task.blocker_reason,
+        }
+
+    attention_queues = {
+        "overdue_tasks": [serialize_task(task) for task in open_tasks if task.is_overdue][:20],
+        "blocked_tasks": [serialize_task(task) for task in open_tasks if task.status == "BLOCKED"][:20],
+        "escalated_tasks": [serialize_task(task) for task in open_tasks if task.status == "ESCALATED"][:20],
+        "critical_tasks": [serialize_task(task) for task in open_tasks if task.priority in {"HIGH", "CRITICAL"}][:20],
+        "guest_issues": [
+            {
+                "id": issue.id,
+                "room_number": issue.room_number,
+                "request_type": issue.request_type,
+                "description": issue.description,
+                "priority": issue.priority,
+                "status": issue.status,
+            }
+            for issue in db.query(GuestRequest).filter(
+                GuestRequest.resort_id == resort_id,
+                GuestRequest.status.in_(["PENDING", "IN_PROGRESS"]),
+            ).order_by(GuestRequest.created_at.desc()).limit(20).all()
+        ],
+        "inventory_risks": [
+            {
+                "id": item.id,
+                "name": item.name,
+                "current_stock": item.current_stock,
+                "reorder_threshold": item.reorder_threshold,
+                "unit": item.unit,
+            }
+            for item in db.query(InventoryItem).filter(
+                InventoryItem.resort_id == resort_id,
+                InventoryItem.current_stock <= InventoryItem.reorder_threshold,
+            ).order_by(InventoryItem.current_stock.asc()).limit(20).all()
+        ],
+    }
+
     # Recent activity logs
     recent_activity = db.query(ActivityLog).filter(
         ActivityLog.resort_id == resort_id
@@ -130,6 +177,7 @@ def get_manager_dashboard(
             for rec in pending_recommendations
         ],
         "room_status_breakdown": {status: count for status, count in room_status_breakdown},
+        "attention_queues": attention_queues,
         "recent_activity": [
             {
                 "id": log.id,
@@ -146,7 +194,7 @@ def get_manager_dashboard(
 
 @router.get("/front-desk")
 def get_front_desk_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["MANAGER", "FRONT_DESK"])),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -223,7 +271,7 @@ def get_front_desk_dashboard(
 
 @router.get("/department")
 def get_department_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["MANAGER", "DEPARTMENT_HEAD"])),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """
@@ -311,7 +359,7 @@ def get_department_dashboard(
 
 @router.get("/staff")
 def get_staff_dashboard(
-    current_user: User = Depends(get_current_user),
+    current_user: User = Depends(require_role(["STAFF"])),
     db: Session = Depends(get_db)
 ) -> Dict[str, Any]:
     """

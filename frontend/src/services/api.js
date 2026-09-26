@@ -31,6 +31,14 @@ export const dashboardAPI = {
   getStaff: () => api.get('/api/dashboard/staff'),
 };
 
+// Room and front-desk actions
+export const frontDeskAPI = {
+  getRooms: () => api.get('/api/rooms'),
+  updateRoomStatus: (id, status) => api.patch(`/api/rooms/${id}/status`, { status }),
+  checkIn: (bookingId) => api.post(`/api/front-desk/bookings/${bookingId}/check-in`),
+  checkOut: (bookingId) => api.post(`/api/front-desk/bookings/${bookingId}/check-out`),
+};
+
 // Forecast endpoints
 export const forecastAPI = {
   getOccupancy: (days = 7) => api.get(`/api/forecast/occupancy?days=${days}`),

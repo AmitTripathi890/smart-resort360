@@ -122,6 +122,16 @@ export const StaffDashboard = () => {
               <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-700/60 mt-4">
                 {task.status === 'PENDING' && (
                   <button
+                    onClick={() => handleUpdateStatus(task.id, 'ASSIGNED')}
+                    className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition"
+                  >
+                    <PlayCircle className="w-4 h-4" />
+                    <span>Accept Task</span>
+                  </button>
+                )}
+
+                {task.status === 'ASSIGNED' && (
+                  <button
                     onClick={() => handleUpdateStatus(task.id, 'IN_PROGRESS')}
                     className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-500 text-white text-xs font-semibold rounded-lg transition"
                   >

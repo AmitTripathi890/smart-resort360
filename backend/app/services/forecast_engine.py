@@ -224,10 +224,13 @@ class ForecastEngine:
             "early_arrivals": early_arrivals
         }
 
-    def generate_7day_forecast(self) -> Dict[str, Any]:
+    def generate_forecast(self, days: int = 7) -> Dict[str, Any]:
         """
         Generate 7-day occupancy forecast combining ML predictions with confirmed bookings.
         """
+        if not 1 <= days <= 30:
+            raise ValueError("Forecast days must be between 1 and 30")
+
         # Get total rooms
         capacity = self.get_room_capacity()
         total_rooms = capacity["total_rooms"]
@@ -245,7 +248,7 @@ class ForecastEngine:
         forecast_days = []
         today = datetime.utcnow().replace(hour=0, minute=0, second=0, microsecond=0)
 
-        for i in range(7):
+        for i in range(days):
             target_date = today + timedelta(days=i)
 
             # Get confirmed booking data
@@ -311,21 +314,29 @@ class ForecastEngine:
         # Overall summary
         total_check_ins = sum(d["check_ins"] for d in forecast_days)
         total_check_outs = sum(d["check_outs"] for d in forecast_days)
-        avg_occupancy = sum(d["predicted_occupancy_pct"] for d in forecast_days) / 7
+        avg_occupancy = sum(d["predicted_occupancy_pct"] for d in forecast_days) / days
         peak_day = max(forecast_days, key=lambda x: x["predicted_occupancy_pct"])
         total_revenue = sum(d["expected_revenue"] for d in forecast_days)
 
         return {
             "forecast_days": forecast_days,
             "overall_summary": {
+                "total_check_ins": total_check_ins,
+                "total_check_outs": total_check_outs,
                 "total_check_ins_7d": total_check_ins,
                 "total_check_outs_7d": total_check_outs,
+                "forecast_days": days,
                 "avg_occupancy_pct": round(avg_occupancy, 2),
                 "peak_occupancy_date": peak_day["date"],
                 "peak_occupancy_pct": peak_day["predicted_occupancy_pct"],
+                "total_expected_revenue": total_revenue,
                 "total_expected_revenue_7d": total_revenue,
                 "total_rooms": total_rooms,
                 "sellable_rooms": sellable_rooms
             },
             "model_metadata": model_metadata
         }
+
+    def generate_7day_forecast(self) -> Dict[str, Any]:
+        """Backward-compatible seven-day forecast used by internal engines."""
+        return self.generate_forecast(7)

@@ -78,12 +78,16 @@ def approve_recommendation(
     resort_id = current_user.resort_id
 
     rec_engine = RecommendationEngine(db, resort_id)
-    result = rec_engine.approve_recommendation(
-        recommendation_id=recommendation_id,
-        user_name=current_user.name,
-        user_id=current_user.id,
-        user_role=current_user.role
-    )
+    try:
+        result = rec_engine.approve_recommendation(
+            recommendation_id=recommendation_id,
+            user_name=current_user.name,
+            user_id=current_user.id,
+            user_role=current_user.role
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        raise HTTPException(status_code=404 if detail == "Recommendation not found" else 409, detail=detail)
 
     return result
 
@@ -133,14 +137,18 @@ def modify_and_approve_recommendation(
         raise HTTPException(status_code=400, detail="modified_quantity is required")
 
     rec_engine = RecommendationEngine(db, resort_id)
-    result = rec_engine.modify_and_approve_recommendation(
-        recommendation_id=recommendation_id,
-        modified_quantity=request.modified_quantity,
-        notes=request.modified_notes,
-        user_name=current_user.name,
-        user_id=current_user.id,
-        user_role=current_user.role
-    )
+    try:
+        result = rec_engine.modify_and_approve_recommendation(
+            recommendation_id=recommendation_id,
+            modified_quantity=request.modified_quantity,
+            notes=request.modified_notes,
+            user_name=current_user.name,
+            user_id=current_user.id,
+            user_role=current_user.role
+        )
+    except ValueError as exc:
+        detail = str(exc)
+        raise HTTPException(status_code=404 if detail == "Recommendation not found" else 409, detail=detail)
 
     return result
 
@@ -165,6 +173,30 @@ def record_recommendation_outcome(
         raise HTTPException(status_code=422, detail="completion_percentage must be between 0 and 100")
 
     payload = outcome.model_dump(exclude_none=True)
+    predicted_metrics = recommendation.metrics_data or {}
+    predicted_workload = predicted_metrics.get("predicted_workload", predicted_metrics.get("rooms_to_clean"))
+    recommended_staff = predicted_metrics.get("staff_needed")
+    if predicted_workload is not None and outcome.actual_workload is not None:
+        prediction_error = outcome.actual_workload - predicted_workload
+        absolute_error = abs(prediction_error)
+        error_percentage = (absolute_error / abs(predicted_workload) * 100) if predicted_workload else None
+        payload.update({
+            "prediction_error": round(prediction_error, 2),
+            "absolute_error": round(absolute_error, 2),
+            "error_percentage": round(error_percentage, 2) if error_percentage is not None else None,
+        })
+    if recommended_staff is not None and outcome.actual_staff_used is not None:
+        payload["staffing_variance"] = outcome.actual_staff_used - recommended_staff
+    expected_completion = predicted_metrics.get("expected_completion_minutes")
+    if expected_completion is not None and outcome.actual_completion_minutes is not None:
+        payload["completion_variance"] = outcome.actual_completion_minutes - expected_completion
+        payload["sla_met"] = outcome.actual_completion_minutes <= expected_completion
+    if outcome.completion_percentage is not None:
+        payload["outcome_status"] = (
+            "SUCCESS" if outcome.completion_percentage >= 90
+            else "PARTIAL" if outcome.completion_percentage >= 70
+            else "FAILED"
+        )
     db.add(ActivityLog(
         resort_id=current_user.resort_id,
         user_id=current_user.id,
@@ -176,7 +208,7 @@ def record_recommendation_outcome(
         description=f"{current_user.name} recorded the outcome for recommendation '{recommendation.title}'",
         details_json={
             "recommendation_id": recommendation.id,
-            "predicted_metrics": recommendation.metrics_data or {},
+            "predicted_metrics": predicted_metrics,
             "actual_outcome": payload,
         },
     ))

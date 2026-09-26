@@ -21,6 +21,7 @@ export const ManagerDashboard = () => {
   const [loading, setLoading] = useState(true);
   const [processing, setProcessing] = useState(false);
   const [activeTab, setActiveTab] = useState('pending'); // pending | all
+  const [activeQueue, setActiveQueue] = useState('overdue_tasks');
 
   useEffect(() => {
     fetchData();
@@ -89,6 +90,16 @@ export const ManagerDashboard = () => {
   }
 
   const kpis = data?.kpis || {};
+  const queues = data?.attention_queues || {};
+  const queueLabels = {
+    overdue_tasks: 'Overdue Tasks',
+    blocked_tasks: 'Blocked Tasks',
+    escalated_tasks: 'Escalated Tasks',
+    critical_tasks: 'Critical Tasks',
+    guest_issues: 'Guest Issues',
+    inventory_risks: 'Inventory Risks',
+  };
+  const activeQueueItems = queues[activeQueue] || [];
   const pending = recommendations.filter(r => r.status === 'PENDING');
   const displayRecs = activeTab === 'pending' ? pending : recommendations;
 
@@ -157,20 +168,58 @@ export const ManagerDashboard = () => {
           </div>
           <span className="ai-label">Operations queue</span>
         </div>
-        <div className="grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="grid grid-cols-2 md:grid-cols-6 gap-3">
           {[
-            ['Overdue tasks', kpis.overdue_tasks, 'text-status-criticalText'],
-            ['Escalated', kpis.escalated_tasks, 'text-status-criticalText'],
-            ['Blocked', kpis.blocked_tasks, 'text-status-warningText'],
-            ['Guest issues', kpis.open_guest_issues, 'text-forest-700'],
-            ['Inventory risks', kpis.inventory_risks, 'text-brass-700']
-          ].map(([label, value, color]) => (
-            <div key={label} className="bg-ivory-100 border border-ivory-300 rounded-lg p-3">
+            ['overdue_tasks', 'Overdue tasks', kpis.overdue_tasks, 'text-status-criticalText'],
+            ['blocked_tasks', 'Blocked', kpis.blocked_tasks, 'text-status-warningText'],
+            ['escalated_tasks', 'Escalated', kpis.escalated_tasks, 'text-status-criticalText'],
+            ['critical_tasks', 'Critical tasks', kpis.critical_tasks, 'text-status-criticalText'],
+            ['guest_issues', 'Guest issues', kpis.open_guest_issues, 'text-forest-700'],
+            ['inventory_risks', 'Inventory risks', kpis.inventory_risks, 'text-brass-700']
+          ].map(([key, label, value, color]) => (
+            <button
+              key={key}
+              type="button"
+              onClick={() => setActiveQueue(key)}
+              className={`text-left bg-ivory-100 border rounded-lg p-3 transition ${activeQueue === key ? 'border-forest-600 ring-2 ring-forest-100' : 'border-ivory-300 hover:border-forest-400'}`}
+            >
               <p className="text-[11px] font-semibold uppercase tracking-wide text-charcoal-500">{label}</p>
               <p className={`text-2xl font-bold mt-1 ${color}`}>{value || 0}</p>
-            </div>
+            </button>
           ))}
         </div>
+      </section>
+
+      <section className="surface p-5 mb-8">
+        <div className="flex items-center justify-between mb-4">
+          <div>
+            <h2 className="text-lg font-bold text-charcoal-900">{queueLabels[activeQueue]}</h2>
+            <p className="text-xs text-charcoal-500 mt-1">The records behind the selected attention count.</p>
+          </div>
+          <span className="text-sm font-semibold text-forest-700">{activeQueueItems.length} shown</span>
+        </div>
+        {activeQueueItems.length === 0 ? (
+          <p className="text-sm text-charcoal-500 py-4">Nothing requires attention in this queue.</p>
+        ) : (
+          <div className="space-y-2">
+            {activeQueueItems.map((item) => (
+              <div key={item.id} className="flex flex-wrap items-center justify-between gap-3 border border-ivory-300 rounded-lg px-4 py-3 bg-ivory-50">
+                <div>
+                  <p className="text-sm font-semibold text-charcoal-900">
+                    {item.room_number ? `Room ${item.room_number} · ` : ''}{item.title || item.request_type || item.name}
+                  </p>
+                  <p className="text-xs text-charcoal-500 mt-1">{item.description || item.department || item.unit || 'Operational follow-up required'}</p>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-semibold">
+                  {item.priority && <span className="px-2 py-1 rounded bg-brass-50 text-brass-700">{item.priority}</span>}
+                  {item.status && <span className="px-2 py-1 rounded bg-ivory-200 text-charcoal-700">{item.status}</span>}
+                  {item.minutes_overdue > 0 && <span className="text-status-criticalText">{item.minutes_overdue} min overdue</span>}
+                  {item.assignee && <span className="text-charcoal-500">{item.assignee}</span>}
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </section>
 
       {/* AI Recommendations Section */}
